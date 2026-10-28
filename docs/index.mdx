@@ -1,0 +1,76 @@
+---
+title: Anatomy
+description: The Branes.AI mission framework, the body plan every mission composes its vehicle with.
+template: splash
+hero:
+  tagline: The body plan every Branes.AI mission composes its vehicle with, from the data contracts and slots to the replay log and the closed-loop simulator.
+  image:
+    file: ../../assets/hero.svg
+  actions:
+    - text: Get Started
+      link: ./getting-started/introduction/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/branes-ai/anatomy
+      icon: external
+      variant: minimal
+---
+
+{/* The site's landing page. It is MDX for the hero and the cards;
+    docs/README.md is the documentation map. */}
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## What Anatomy is
+
+**Anatomy** is the mission-framework tier of the Branes.AI platform. The
+platform repos are the nervous system: [Cortex](https://branes-ai.github.io/cortex/)
+perceives and plans, [Reflex](https://branes-ai.github.io/reflex/) controls and
+keeps the vehicle safe, and [Synapse](https://github.com/branes-ai/synapse) runs
+learned models. Anatomy is the body plan they are assembled into. Every mission
+repo, such as [Racing Drone](https://branes-ai.github.io/racing-drone/), builds
+its vehicle on it.
+
+Anatomy holds no algorithms and no mission. It holds the mechanism every
+mission needs: what a component is, how components are composed, how a run is
+logged and replayed, and how it is simulated and scored. A mission supplies its
+task: its world, the components that see it, and how its runs are scored.
+
+<CardGrid>
+	<Card title="Slots and composition" icon="puzzle">
+		Components fill fixed slots, defined as C++20 concepts. A baseline names
+		one implementation per slot, and the generator composes them at compile
+		time.
+	</Card>
+	<Card title="Deterministic replay" icon="approve-check">
+		Integer-nanosecond time and a log of every input and output, so any run
+		replays record for record.
+	</Card>
+	<Card title="A closed-loop simulator" icon="rocket">
+		SITL on the reflex dynamics, with a simulated flight controller, IMU,
+		faults and camera timing. The mission adds its oracle sensors and its
+		scorer.
+	</Card>
+	<Card title="Any scalar type" icon="setting">
+		Every contract and slot is templated on its scalar type, so a stack runs
+		in `float`, posits or bfloat16 for mixed-precision study.
+	</Card>
+</CardGrid>
+
+## The tiers at a glance
+
+| Tier | Repos | Role |
+|---|---|---|
+| Mission | `racing-drone`, `scout-drone`, `nano-drone`, `isr-drone`, `interceptor-drone`, `counter-uas` | The vehicle and its task: world, task slots, stack, scorer, data |
+| **Mission framework** | **`anatomy`** | **Contracts, slots and composition, configs, the log, the harness, the simulator** |
+| Platform | `cortex`, `synapse`, `reflex` | The algorithms: perception and planning, learned models, control and safety |
+| Math | MTL5, Universal | Linear algebra and computer arithmetic |
+
+## Where to go next
+
+- **[Introduction](getting-started/introduction.md)**: why a mission framework, and what it holds.
+- **[Build & Test](getting-started/build-and-test.md)**: build the library and run its tests.
+- **[The move from racing-drone](plan/move-from-racing-drone/README.md)**: how the framework arrives here.
+
+> Status: the repository skeleton. The framework moves here from racing-drone
+> in the next step ([plan](plan/move-from-racing-drone/README.md)).
