@@ -24,6 +24,6 @@ Anatomy holds no algorithms: those are in the platform repos. It holds no missio
 
 ## How it arrives
 
-The framework moves here from racing-drone in three PRs: this skeleton, the move itself, and racing-drone's switch to consume it. The [plan](../plan/move-from-racing-drone/README.md) has the details, and racing-drone's outputs stay byte-identical throughout.
+The framework moves here from racing-drone in three PRs: the skeleton, the move itself (done), and racing-drone's switch to consume it. The [plan](../plan/move-from-racing-drone/README.md) has the details, and racing-drone's outputs stay byte-identical throughout.
 
 Next: [build and test](build-and-test.md).
