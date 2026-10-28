@@ -7,7 +7,7 @@
     "sync": "node scripts/sync-docs.mjs",
     "predev": "npm run sync",
     "dev": "astro dev",
-    "start": "astro dev",
+    "start": "npm run dev",
     "api": "doxygen Doxyfile",
     "prebuild": "npm run sync",
     "build": "astro build",

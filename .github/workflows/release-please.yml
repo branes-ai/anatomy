@@ -8,6 +8,12 @@ permissions:
   contents: write
   pull-requests: write
 
+# One run at a time, none cancelled: release-please force-updates the release
+# PR, so an older run overlapping a newer one could restore stale notes.
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
 jobs:
   release-please:
     name: release-please

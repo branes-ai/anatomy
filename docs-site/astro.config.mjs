@@ -21,10 +21,13 @@ const site = isGitHubPages
   : (process.env.SITE_URL || 'http://localhost:4321');
 const base = isGitHubPages ? '/anatomy/' : '/';
 
-// The Doxygen C++ API reference is generated into public/api/ and served at
-// <base>api/. Starlight prepends `base` to internal sidebar links, so this must
-// be base-relative (prefixing it here too would double it).
+// The Doxygen C++ API reference is generated into public/api/ (`npm run api`,
+// and in the deploy workflow) and served at <base>api/. Starlight prepends
+// `base` to internal sidebar links, so this must be base-relative (prefixing
+// it here too would double it). The sidebar links it only when it has been
+// generated, so a preview without Doxygen has no dead link.
 const apiHref = '/api/';
+const hasApi = fs.existsSync(new URL('./public/api/index.html', import.meta.url));
 
 // Rehype plugin to rewrite absolute internal links with the base path, so the
 // root-relative links sync-docs.mjs generates resolve under /anatomy/ on
@@ -73,12 +76,14 @@ export default defineConfig({
       },
       sidebar: [
         ...docsSidebar,
-        {
-          label: 'API Reference',
-          items: [
-            { label: 'C++ API (Doxygen)', link: apiHref, attrs: { target: '_blank' } },
-          ],
-        },
+        ...(hasApi
+          ? [
+              {
+                label: 'API Reference',
+                items: [{ label: 'C++ API (Doxygen)', link: apiHref, attrs: { target: '_blank' } }],
+              },
+            ]
+          : []),
       ],
       customCss: ['./src/styles/custom.css'],
     }),
