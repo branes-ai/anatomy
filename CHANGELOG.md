@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.1](https://github.com/branes-ai/anatomy/compare/v0.1.0...v0.1.1) (2026-10-28)
+
+
+### Documentation
+
+* **adr:** 0001, a core with mobility and sensing profiles, and a multi-node layer ([#5](https://github.com/branes-ai/anatomy/issues/5)) ([763f9e2](https://github.com/branes-ai/anatomy/commit/763f9e245ae640c7c53942d3a0a58c3f1b169dfe))
+* the five-tier stack diagram, with anatomy and scout-drone ([#4](https://github.com/branes-ai/anatomy/issues/4)) ([07420aa](https://github.com/branes-ai/anatomy/commit/07420aa37dcaa5575ef7448abbe649482fad3651))
+
 ## 0.1.0 (2026-10-28)
 
 
