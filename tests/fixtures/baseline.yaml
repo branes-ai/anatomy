@@ -1,0 +1,9 @@
+# A test mission's baseline, over the test slot list (controller, estimator,
+# safety_filter), for the baseline loader's tests.
+name: "test"
+composition:
+  controller: NullController
+  estimator: TestEstimator
+  safety_filter: NullSafetyFilter
+parameters:
+  control_rate_hz: 100

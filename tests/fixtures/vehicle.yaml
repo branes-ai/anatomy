@@ -1,0 +1,43 @@
+# A test vehicle for anatomy's tests: a copy of racing-drone's RP-1
+# (racing-drone vehicles/rp1.yaml), a 5-inch-class quadrotor of about 1 kg.
+# Test data only: a mission keeps its own vehicle files.
+
+name: rp1
+mass_kg: 0.966
+inertia_kgm2: [0.0030, 0.0030, 0.0050]   # placeholder
+arm_length_m: 0.11                       # placeholder
+rotor_count: 4
+rotor:
+  thrust_coefficient: 8.9e-7             # placeholder: ~12 N at ~3665 rad/s
+  torque_coefficient: 0.016              # placeholder
+  max_thrust_n: 12.0                     # placeholder: thrust-to-weight ~5
+  time_constant_s: 0.02                  # placeholder
+drag:
+  linear: [0.30, 0.30, 0.50]             # placeholder
+  quadratic: [0.030, 0.030, 0.050]       # placeholder
+imu:
+  rate_hz: 1000                          # A2RL 2025: accelerometer 1 kHz (gyro 2 kHz)
+  gyro_range_rad_s: 34.9                 # ±2000 °/s
+  accel_range_m_s2: 156.9                # ±16 g — saturates in flight (EST-07)
+  gyro_noise_density: 1.7e-4             # placeholder
+  accel_noise_density: 2.0e-3            # placeholder
+  gyro_bias_random_walk: 1.0e-5         # placeholder [rad/s²/√Hz]
+  accel_bias_random_walk: 1.0e-4        # placeholder [m/s³/√Hz]
+  initial_gyro_bias_sigma: 5.0e-3       # placeholder: turn-on bias, 1σ per axis [rad/s]
+  initial_accel_bias_sigma: 5.0e-2      # placeholder: turn-on bias, 1σ per axis [m/s²]
+  latency_s: 0.001                      # placeholder: FC sample → companion delivery
+camera:
+  model: equidistant                     # 155° × 115° field of view: fisheye
+  width: 820
+  height: 616
+  format: mono8
+  fx: 303.0                              # equidistant: (820/2) / (155°/2 in rad)
+  fy: 303.0
+  cx: 410.0
+  cy: 308.0
+  distortion: [0.0, 0.0, 0.0, 0.0]       # placeholder until calibrated
+  rate_hz: 90
+  shutter: rolling                       # IMX219
+  row_readout_ns: 18000                  # ~11 ms readout over 616 rows
+  translation_body_m: [0.08, 0.0, 0.02]  # placeholder
+  rotation_body_wxyz: [0.5, -0.5, 0.5, -0.5]  # camera z → body x (looking forward), no uptilt
