@@ -1,0 +1,16 @@
+# Randomization and faults, for the scenario loader's tests.
+name: faults
+world: ../world.yaml
+vehicle: ../vehicle.yaml
+duration_s: 1.5
+seed: 20261026
+randomization:
+  mass: 0.05
+  inertia: 0.1
+  drag: 0.1
+  motor_time_constant: 0.1
+  start_xy_m: 0.2
+  start_yaw_rad: 0.1
+faults:
+  - {type: camera_corrupt, t_s: 0.0, probability: 0.25}
+  - {type: imu_bias_step, t_s: 0.8, gyro: [0.01, 0.0, 0.0], accel: [0.0, 0.0, 0.1]}

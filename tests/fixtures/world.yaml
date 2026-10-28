@@ -1,0 +1,3 @@
+# A test mission's world file. The scenario loader only checks that the world
+# file exists; what it holds is the mission's business.
+name: test-world

@@ -1,0 +1,7 @@
+# A speed limit, for the scenario loader's tests.
+name: speed
+world: ../world.yaml
+vehicle: ../vehicle.yaml
+duration_s: 120
+seed: 1700
+speed_limit_m_s: 5.0

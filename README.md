@@ -12,7 +12,10 @@ The platform repos are the nervous system: `cortex` perceives and plans, `reflex
 
 It holds no algorithms and no mission.
 
-The framework moves here from racing-drone ([ADR 0008](https://github.com/branes-ai/racing-drone/blob/main/docs/adr/0008-anatomy-mission-framework.md)). This is the repository skeleton; the [plan](docs/plan/move-from-racing-drone/README.md) has the steps.
+The framework moved here from racing-drone ([ADR 0008](https://github.com/branes-ai/racing-drone/blob/main/docs/adr/0008-anatomy-mission-framework.md); [plan](docs/plan/move-from-racing-drone/README.md)). It builds three libraries:
+- `branes::anatomy`: the contracts, slots, composition, configs, log and harness;
+- `branes::anatomy_glue`: the adapters from reflex components to the slots;
+- `branes::anatomy_sim`: the closed-loop simulator on the reflex dynamics.
 
 The documentation in [`docs/`](docs/README.md) is published at <https://branes-ai.github.io/anatomy/>.
 

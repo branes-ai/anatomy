@@ -9,9 +9,9 @@
 /// supply their task: their world, the slots that see it, their stack and
 /// their scorer.
 ///
-/// The framework moves here from racing-drone in step 2 of ADR 0008
-/// (docs/plan/move-from-racing-drone/); this header names the library until
-/// then.
+/// The framework came here from racing-drone (racing-drone ADR 0008; this
+/// repo's docs/plan/move-from-racing-drone/). This header names the library;
+/// include the headers of the parts you use.
 
 #include <string_view>
 

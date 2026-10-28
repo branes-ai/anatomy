@@ -30,14 +30,25 @@ if(ANATOMY_BUILD_TESTS)
     include(CTest)
 endif()
 
-# Third-party deps (Catch2 only when testing). Permissive licenses only.
+# Third-party deps (yaml-cpp, reflex, Universal; Catch2 only when testing).
+# Permissive licenses only.
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/deps.cmake)
+# The batch runners' pool (harness/parallel.hpp) runs on threads.
+find_package(Threads REQUIRED)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/warnings.cmake)
 
-# The framework library: data contracts, slots, configs, the log, the harness
-# (branes::anatomy). The reflex glue (glue/) and the simulator (sim/) join it
-# with the move from racing-drone (docs/plan/move-from-racing-drone/).
+# A mission composes its baselines with cmake/composition.cmake:
+#   include(${ANATOMY_CMAKE_DIR}/composition.cmake)
+set(ANATOMY_CMAKE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cmake CACHE INTERNAL "anatomy's CMake modules")
+
+# The framework library: data contracts, slots, configs, the log, the harness.
 add_subdirectory(sdk)
+
+# The adapters from reflex components to the slots.
+add_subdirectory(glue)
+
+# The closed-loop simulator on the reflex dynamics.
+add_subdirectory(sim)
 
 if(ANATOMY_BUILD_TESTS AND BUILD_TESTING)
     add_subdirectory(tests)

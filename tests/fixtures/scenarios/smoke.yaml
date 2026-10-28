@@ -1,0 +1,6 @@
+# A short run of the test vehicle, for the scenario loader's tests.
+name: smoke
+world: ../world.yaml
+vehicle: ../vehicle.yaml
+duration_s: 0.2
+seed: 20261024
