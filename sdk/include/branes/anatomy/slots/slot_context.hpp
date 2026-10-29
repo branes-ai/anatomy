@@ -19,6 +19,7 @@
 /// receives the simulated true state from the stack's on_truth(). Only SITL
 /// logs carry truth (SYS-02), so in flight such a slot never receives any.
 
+#include <branes/anatomy/compose/profile.hpp>
 #include <branes/anatomy/config/baseline.hpp>
 #include <branes/anatomy/config/vehicle.hpp>
 #include <branes/anatomy/msg/region.hpp>
@@ -53,9 +54,11 @@ concept ContextBuilt = requires(const Ctx& ctx) {
     { S::from_context(ctx) } -> std::same_as<result<S, std::string>>;
 };
 
-/// A slot that reads the simulated true state (SITL only).
+/// A slot that reads a roaming vehicle's simulated true state, in scalar type
+/// T (SITL only). Another profile's truth slots are ConsumesTruth<S, Truth>
+/// (compose/profile.hpp).
 template <class S, class T>
-concept TruthConsumer = requires(S s, const TruthState<T>& x) { s.process_truth(x); };
+concept TruthConsumer = ConsumesTruth<S, TruthState<T>>;
 
 /// Build slot S from `ctx` if it is ContextBuilt, else default-construct it.
 template <class S, class World>
