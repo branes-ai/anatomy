@@ -1,6 +1,10 @@
+---
+status: complete
+issue: branes-ai/anatomy#7
+---
 # Plan: the core's outputs, truth and events take the mission's types
 
-Issue: [anatomy#7](https://github.com/branes-ai/anatomy/issues/7). Status: done. 1a (#8) released in v0.2.0; 1b ([racing-drone#70](https://github.com/branes-ai/racing-drone/pull/70)) moved racing-drone to it, byte-identical.
+Issue: [anatomy#7](https://github.com/branes-ai/anatomy/issues/7). 1a (#8) was released in v0.2.0, and 1b ([racing-drone#70](https://github.com/branes-ai/racing-drone/pull/70)) moved racing-drone to it, byte-identical.
 
 ## Goal
 

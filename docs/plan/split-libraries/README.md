@@ -1,6 +1,10 @@
+---
+status: complete
+issue: branes-ai/anatomy#10
+---
 # Plan: the libraries split into core, mobility and mobility_sim
 
-Issue: [anatomy#10](https://github.com/branes-ai/anatomy/issues/10). Status: approved; 2a done (#11), 2b in progress, 2c to come.
+Issue: [anatomy#10](https://github.com/branes-ai/anatomy/issues/10). 2a (#11) and 2b (#13) here, released in v0.3.0, and 2c, racing-drone's switch ([racing-drone#72](https://github.com/branes-ai/racing-drone/pull/72)).
 
 ## Goal
 
