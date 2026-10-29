@@ -57,7 +57,7 @@
 #include <branes/anatomy/msg/estimate.hpp>
 #include <branes/anatomy/msg/time.hpp>
 #include <branes/anatomy/result.hpp>
-#include <branes/anatomy/slots/slot_context.hpp>
+#include <branes/anatomy/slots/context.hpp>
 #include <branes/reflex/control/attitude.hpp>
 #include <branes/reflex/control/cascade.hpp>
 #include <branes/reflex/control/position.hpp>

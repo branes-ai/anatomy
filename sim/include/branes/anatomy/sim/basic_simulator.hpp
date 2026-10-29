@@ -54,11 +54,12 @@
 #include <branes/anatomy/config/vehicle.hpp>
 #include <branes/anatomy/harness/synthetic.hpp>
 #include <branes/anatomy/log/log.hpp>
+#include <branes/anatomy/msg/camera.hpp>
 #include <branes/anatomy/msg/codec.hpp>
 #include <branes/anatomy/msg/control.hpp>
 #include <branes/anatomy/msg/geometry.hpp>
+#include <branes/anatomy/msg/imu.hpp>
 #include <branes/anatomy/msg/region.hpp>
-#include <branes/anatomy/msg/sensors.hpp>
 #include <branes/anatomy/msg/time.hpp>
 #include <branes/anatomy/msg/truth.hpp>
 #include <branes/anatomy/result.hpp>

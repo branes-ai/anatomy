@@ -6,7 +6,7 @@
 /// stack runs the composed stack open loop on the control tick; the HIL and
 /// flight I/O replace it in later phases.
 
-#include <branes/anatomy/compose/tick.hpp>
+#include <branes/anatomy/compose/profile.hpp>
 #include <branes/anatomy/msg/time.hpp>
 
 #include <cstdint>

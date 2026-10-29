@@ -9,8 +9,8 @@
 /// equal value (round trip), with doubles written to 17 significant digits.
 
 #include <branes/anatomy/config/error.hpp>
+#include <branes/anatomy/msg/camera.hpp>
 #include <branes/anatomy/msg/geometry.hpp>
-#include <branes/anatomy/msg/sensors.hpp>
 #include <branes/anatomy/result.hpp>
 
 #include <array>

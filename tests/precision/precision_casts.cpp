@@ -10,7 +10,7 @@
 
 #include <branes/anatomy/msg/control.hpp>
 #include <branes/anatomy/msg/estimate.hpp>
-#include <branes/anatomy/msg/sensors.hpp>
+#include <branes/anatomy/msg/imu.hpp>
 #include <branes/anatomy/msg/truth.hpp>
 #include <branes/anatomy/sim/sweep_types.hpp>
 #include <branes/anatomy/util/splitmix64.hpp>

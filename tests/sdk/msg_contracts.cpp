@@ -2,11 +2,12 @@
 // valid() accepts the default or a hand-built good value and rejects one
 // violation per invariant.
 
+#include <branes/anatomy/msg/camera.hpp>
 #include <branes/anatomy/msg/control.hpp>
 #include <branes/anatomy/msg/daa.hpp>
 #include <branes/anatomy/msg/estimate.hpp>
+#include <branes/anatomy/msg/imu.hpp>
 #include <branes/anatomy/msg/intruders.hpp>
-#include <branes/anatomy/msg/sensors.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 

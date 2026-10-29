@@ -15,10 +15,10 @@
 #include <branes/anatomy/msg/region.hpp>
 #include <branes/anatomy/sim/basic_simulator.hpp>
 #include <branes/anatomy/sim/closed_loop.hpp>
+#include <branes/anatomy/slots/context.hpp>
 #include <branes/anatomy/slots/ground_truth_core.hpp>
 #include <branes/anatomy/slots/neutral.hpp>
 #include <branes/anatomy/slots/neutral_nulls.hpp>
-#include <branes/anatomy/slots/slot_context.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
