@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.0](https://github.com/branes-ai/anatomy/compare/v0.1.1...v0.2.0) (2026-10-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* RunnableStack requires the stack to name its profile; a mobile mission's stack adds `using profile = MobilityProfile;`.
+
+### Features
+
+* the core's outputs, truth and events take the stack profile's types ([#8](https://github.com/branes-ai/anatomy/issues/8)) ([0df2948](https://github.com/branes-ai/anatomy/commit/0df2948a58261b87aa53099374071503592f95d3))
+
 ## [0.1.1](https://github.com/branes-ai/anatomy/compare/v0.1.0...v0.1.1) (2026-10-28)
 
 
