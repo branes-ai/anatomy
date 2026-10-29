@@ -8,4 +8,4 @@ These documents are published at <https://branes-ai.github.io/anatomy/>. The sit
 | [plan/](plan/move-from-racing-drone/README.md) | Per-issue plans, each with its issues and PRs: [the move from racing-drone](plan/move-from-racing-drone/README.md) |
 | [adr/](adr/README.md) | Architecture decision records: [0001, a core with mobility and sensing profiles, and a multi-node layer](adr/0001-core-profiles-multi-node.md) |
 
-The plans and the decisions are published on the [architecture site](https://branes-ai.github.io/architecture/anatomy/), with every other repo's and their status, rather than here.
+The plans and the decisions are published on the [architecture site](https://branes-ai.github.io/architecture/anatomy/), alongside every other repo's plans and decisions and their status, rather than here.

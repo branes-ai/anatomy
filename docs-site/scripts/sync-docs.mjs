@@ -7,6 +7,8 @@
 //   docs/README.md      → the documentation map, /overview/ (the home page
 //                         when there is no docs/index.mdx)
 //   sidebar             → src/generated/sidebar.json
+//   the records' old pages → public/{adr,plan}/**/index.html, each a redirect to
+//                         the record's page on the architecture site
 //
 // Nothing under src/content/docs/ is authored by hand; it is deleted and
 // rebuilt on every run. Relative links are rewritten: to a page when the target
@@ -132,11 +134,11 @@ function parse(file) {
 
 const errors = [];
 
-const mdFiles = walk(DOCS_DIR)
+const allMd = walk(DOCS_DIR)
   .filter((f) => f.endsWith('.md'))
   .map((f) => toPosix(path.relative(DOCS_DIR, f)))
-  .filter((rel) => !isRecord(rel))
   .sort();
+const mdFiles = allMd.filter((rel) => !isRecord(rel));
 
 const docs = new Map();
 for (const rel of mdFiles) {
@@ -334,4 +336,30 @@ if (errors.length) {
 
 fs.mkdirSync(GEN_DIR, { recursive: true });
 fs.writeFileSync(path.join(GEN_DIR, 'sidebar.json'), JSON.stringify(sidebar, null, 2) + '\n');
-console.log(`sync-docs: ${docs.size} pages from docs/, ${copies.size} images, ${order.length} sidebar groups`);
+
+// The records were pages of this site until they moved to the architecture
+// site. Each old page redirects there, keeping the URL's #fragment; the meta
+// refresh is the fallback without JavaScript.
+const PUBLIC_DIR = path.join(SITE_DIR, 'public');
+for (const folder of RECORDS) fs.rmSync(path.join(PUBLIC_DIR, folder), { recursive: true, force: true });
+const records = allMd.filter(isRecord);
+for (const rel of records) {
+  const url = JSON.stringify(recordUrl(rel));
+  const html = [
+    '<!doctype html>',
+    '<html lang="en">',
+    '<meta charset="utf-8">',
+    '<title>Moved to the architecture site</title>',
+    '<meta name="robots" content="noindex">',
+    `<link rel="canonical" href=${url}>`,
+    `<script>location.replace(${url} + location.hash);</script>`,
+    `<meta http-equiv="refresh" content="0; url=${recordUrl(rel)}">`,
+    `<p>This page moved to <a href=${url}>the architecture site</a>.</p>`,
+    '</html>',
+    '',
+  ].join('\n');
+  const out = path.join(PUBLIC_DIR, pageOf(rel).slug, 'index.html');
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, html);
+}
+console.log(`sync-docs: ${docs.size} pages from docs/, ${copies.size} images, ${order.length} sidebar groups, ${records.length} redirects to the architecture site`);
