@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.2](https://github.com/branes-ai/anatomy/compare/v0.3.1...v0.3.2) (2026-10-29)
+
+
+### Bug Fixes
+
+* **docs-site:** close fences, check github anchors, keep intraword underscores ([#18](https://github.com/branes-ai/anatomy/issues/18)) ([d0780d1](https://github.com/branes-ai/anatomy/commit/d0780d1103bba375e1001fdcca121b8b722e24ac))
+
+
+### Documentation
+
+* say the framework has arrived, and what came after ([#16](https://github.com/branes-ai/anatomy/issues/16)) ([8d41856](https://github.com/branes-ai/anatomy/commit/8d418568bc3d9ad0ed3bdede1b153c799f0c02f3))
+
 ## [0.3.1](https://github.com/branes-ai/anatomy/compare/v0.3.0...v0.3.1) (2026-10-29)
 
 
