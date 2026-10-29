@@ -1,6 +1,8 @@
 // Generates the site's content from the repo's docs/ (docs/plan/docs-site).
 //
-//   docs/**/*.md        → src/content/docs/**  (README.md → index.md)
+//   docs/**/*.md        → src/content/docs/**  (README.md → index.md), except
+//                         the records (docs/adr/, docs/plan/), which the
+//                         architecture site publishes (branes-ai/architecture)
 //   docs/index.mdx      → the home page (docs/plan/docs-site-landing)
 //   docs/README.md      → the documentation map, /overview/ (the home page
 //                         when there is no docs/index.mdx)
@@ -8,8 +10,9 @@
 //
 // Nothing under src/content/docs/ is authored by hand; it is deleted and
 // rebuilt on every run. Relative links are rewritten: to a page when the target
-// is a document in docs/, to GitHub when it is any other file in the repo. A
-// relative link whose target (or anchor) does not exist fails the run.
+// is a document in docs/, to the architecture site when it is a record, to
+// GitHub when it is any other file in the repo. A relative link whose target
+// (or anchor) does not exist fails the run.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,12 +28,15 @@ const GEN_DIR = path.join(SITE_DIR, 'src', 'generated');
 const GITHUB = 'https://github.com/branes-ai/anatomy';
 const BRANCH = 'main';
 
+// The records: published on the architecture site, not here.
+const RECORDS = new Set(['adr', 'plan']);
+const ARCHITECTURE = 'https://branes-ai.github.io/architecture';
+const REPO = 'anatomy';
+
 // Sidebar labels for top-level folders whose name is not a good label.
 const GROUP_LABELS = {
-  adr: 'Decisions (ADRs)',
   arch: 'Architecture',
   'getting-started': 'Getting Started',
-  plan: 'Plans',
 };
 
 // The landing page: MDX, for Starlight's hero and components.
@@ -40,6 +46,17 @@ const hasLanding = fs.existsSync(path.join(DOCS_DIR, LANDING));
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp']);
 
 const toPosix = (p) => p.split(path.sep).join('/');
+const isRecord = (docsRel) => RECORDS.has(docsRel.split('/')[0]);
+
+// A record's page on the architecture site: its path under docs/, each
+// segment slugified, a README being its folder's page. The rule is the site's
+// (branes-ai/architecture, scripts/lib/parse.mjs, routeOf).
+function recordUrl(docsRel) {
+  const parts = docsRel.split('/');
+  const base = parts.pop().replace(/\.md$/, '');
+  if (base !== 'README') parts.push(base);
+  return `${ARCHITECTURE}/${[REPO, ...parts].map((x) => slugify(x)).join('/')}/`;
+}
 
 function walk(dir) {
   const out = [];
@@ -118,6 +135,7 @@ const errors = [];
 const mdFiles = walk(DOCS_DIR)
   .filter((f) => f.endsWith('.md'))
   .map((f) => toPosix(path.relative(DOCS_DIR, f)))
+  .filter((rel) => !isRecord(rel))
   .sort();
 
 const docs = new Map();
@@ -181,6 +199,12 @@ function rewrite(target, rel, lineNo, copies) {
       errors.push(`${where}: docs/${docRel} has no heading for anchor #${anchor}`);
     }
     return page.route + (anchor !== null ? `#${anchor}` : '');
+  }
+  if (inDocs && isRecord(docRel) && docRel.endsWith('.md') && fs.existsSync(path.join(DOCS_DIR, docRel))) {
+    if (anchor !== null && !parse(path.join(DOCS_DIR, docRel)).anchors.has(anchor)) {
+      errors.push(`${where}: docs/${docRel} has no heading for anchor #${anchor}`);
+    }
+    return recordUrl(docRel) + (anchor !== null ? `#${anchor}` : '');
   }
   if (inDocs && !isDir && IMAGE_EXT.has(path.extname(abs).toLowerCase())) {
     copies.add(docsRel);
