@@ -6,7 +6,7 @@
 
 The Branes.AI platform has one repo per mission: `racing-drone`, `scout-drone`, `nano-drone`, `isr-drone`, `interceptor-drone`, `counter-uas`. Each composes components from the platform repos (`cortex`, `synapse`, `reflex`) into a vehicle that performs its mission.
 
-The way a mission composes, runs, logs, replays, simulates and scores its vehicle is the same for every mission. That framework was first built inside racing-drone. [ADR 0008](https://github.com/branes-ai/racing-drone/blob/main/docs/adr/0008-anatomy-mission-framework.md) moves it here, so every mission builds on one copy rather than its own.
+The way a mission composes, runs, logs, replays, simulates and scores its vehicle is the same for every mission. That framework was first built inside racing-drone. [ADR 0008](https://branes-ai.github.io/architecture/racing-drone/adr/0008-anatomy-mission-framework/) moved it here, so every mission builds on one copy rather than its own.
 
 ## What anatomy holds, and what a mission supplies
 
@@ -22,8 +22,10 @@ The way a mission composes, runs, logs, replays, simulates and scores its vehicl
 
 Anatomy holds no algorithms: those are in the platform repos. It holds no mission either: those are in the mission repos.
 
-## How it arrives
+## How it arrived
 
-The framework moves here from racing-drone in three PRs: the skeleton, the move itself (done), and racing-drone's switch to consume it. The [plan](../plan/move-from-racing-drone/README.md) has the details, and racing-drone's outputs stay byte-identical throughout.
+The framework moved here from racing-drone in three PRs: the skeleton ([#1](https://github.com/branes-ai/anatomy/pull/1)) and the move itself ([#3](https://github.com/branes-ai/anatomy/pull/3)), released as v0.1.0, and racing-drone's switch to consume it ([racing-drone#66](https://github.com/branes-ai/racing-drone/pull/66)). Racing-drone's outputs stayed byte-identical throughout; the [plan](../plan/move-from-racing-drone/README.md) has the details.
+
+Since then, [ADR 0001](../adr/0001-core-profiles-multi-node.md) has made the core generic over a stack profile ([plan](../plan/generalize-core/README.md), v0.2.0) and split it by kind of mission ([plan](../plan/split-libraries/README.md), v0.3.0): `branes::anatomy` for every mission, `branes::anatomy_mobility` for a mobile vehicle, and `branes::anatomy_mobility_sim` for its simulator. Racing-drone builds on v0.3.0, byte-identical again. The next client is scout-drone, step 3 of ADR 0008.
 
 Next: [build and test](build-and-test.md).
