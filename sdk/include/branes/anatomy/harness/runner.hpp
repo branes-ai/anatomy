@@ -7,7 +7,6 @@
 /// record for record.
 
 #include <branes/anatomy/compose/profile.hpp>
-#include <branes/anatomy/compose/tick.hpp>
 #include <branes/anatomy/log/log.hpp>
 #include <branes/anatomy/msg/time.hpp>
 #include <branes/anatomy/result.hpp>

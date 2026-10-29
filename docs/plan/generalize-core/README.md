@@ -1,6 +1,6 @@
 # Plan: the core's outputs, truth and events take the mission's types
 
-Issue: [anatomy#7](https://github.com/branes-ai/anatomy/issues/7). Status: approved; PR 1a in progress, 1b to come.
+Issue: [anatomy#7](https://github.com/branes-ai/anatomy/issues/7). Status: done. 1a (#8) released in v0.2.0; 1b ([racing-drone#70](https://github.com/branes-ai/racing-drone/pull/70)) moved racing-drone to it, byte-identical.
 
 ## Goal
 

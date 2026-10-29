@@ -1,12 +1,13 @@
 #pragma once
-/// @file sensors.hpp
-/// @brief ImuSample, CameraFrame (in-process view), and CameraFrameRecord (owning wire form).
+/// @file camera.hpp
+/// @brief CameraFrame (in-process view), and CameraFrameRecord (owning wire form).
 ///
 /// racing-drone docs/arch/framework-architecture.md §4: CameraFrame never crosses a process
 /// boundary, Zenoh, or a log. Its owning wire and log form is
-/// CameraFrameRecord; to_record() and view_of() convert explicitly.
+/// CameraFrameRecord; to_record() and view_of() convert explicitly. Nothing in
+/// a frame names the body that carries the camera, so the frame contracts are
+/// the same for a vehicle's camera and a fixed one.
 
-#include <branes/anatomy/msg/geometry.hpp>
 #include <branes/anatomy/msg/time.hpp>
 
 #include <cstddef>
@@ -15,46 +16,6 @@
 #include <vector>
 
 namespace branes::anatomy {
-
-// ── IMU ─────────────────────────────────────────────────────────────
-
-/// Saturation flags of an ImuSample: one bit per axis per sensor.
-enum ImuSaturation : std::uint8_t {
-    gyro_x_saturated = 1u << 0,
-    gyro_y_saturated = 1u << 1,
-    gyro_z_saturated = 1u << 2,
-    accel_x_saturated = 1u << 3,
-    accel_y_saturated = 1u << 4,
-    accel_z_saturated = 1u << 5,
-};
-inline constexpr std::uint8_t imu_saturation_mask = 0x3F;
-
-/// One IMU sample in the body frame, timestamped on the companion clock.
-///
-/// Invariants: I1 saturated ⊆ imu_saturation_mask.
-template <typename T>
-struct ImuSample {
-    Timestamp t;
-    Vec3<T> gyro{};             ///< angular rate [rad/s]
-    Vec3<T> accel{};            ///< specific force [m/s²]
-    std::uint8_t saturated{0};  ///< ImuSaturation bits
-    T temperature{0};           ///< sensor temperature [°C]
-
-    friend constexpr bool operator==(const ImuSample&, const ImuSample&) = default;
-};
-
-template <typename T>
-[[nodiscard]] constexpr bool valid(const ImuSample<T>& s) noexcept {
-    return (s.saturated & ~imu_saturation_mask) == 0;  // I1
-}
-
-/// An IMU sample in another scalar type, element by element.
-template <typename To, typename From>
-[[nodiscard]] constexpr ImuSample<To> cast(const ImuSample<From>& s) noexcept {
-    return ImuSample<To>{s.t, cast<To>(s.gyro), cast<To>(s.accel), s.saturated, To(s.temperature)};
-}
-
-// ── Camera ──────────────────────────────────────────────────────────
 
 enum class PixelFormat : std::uint8_t {
     mono8 = 0,
