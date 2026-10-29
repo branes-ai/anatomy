@@ -24,8 +24,10 @@ namespace branes::anatomy::sim {
 
 /// Run `sim` and `stack` to the end, logging every input and output to
 /// `writer`. Returns the number of ticks, or the error that stopped the run.
+/// The loop sends the stack's command to the FC, so it takes a mobile stack
+/// (MobileStack) only.
 /// Pre: writer.is_open().
-template <class Oracle, RunnableStack StackT>
+template <class Oracle, MobileStack StackT>
 [[nodiscard]] result<std::uint64_t, std::string>
 run_sitl(BasicSimulator<Oracle>& sim, StackT& stack, std::span<const log::Channel> mission, log::LogWriter& writer) {
     harness::Runner runner(stack, mission);

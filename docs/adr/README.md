@@ -6,4 +6,4 @@ Anatomy was created by [racing-drone ADR 0008](https://github.com/branes-ai/raci
 
 | ADR | Decision | Status |
 |---|---|---|
-| [0001](0001-core-profiles-multi-node.md) | A mission-neutral core with mobility and sensing profiles, and a multi-node layer in the core | Proposed |
+| [0001](0001-core-profiles-multi-node.md) | A mission-neutral core with mobility and sensing profiles, and a multi-node layer in the core | Accepted |
