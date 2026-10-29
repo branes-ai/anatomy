@@ -1,6 +1,10 @@
+---
+status: complete
+issue: branes-ai/racing-drone#65
+---
 # Plan: the framework moves here from racing-drone
 
-Issue: [racing-drone#65](https://github.com/branes-ai/racing-drone/issues/65). Status: in progress. PR 2a (#1) and 2b done; 2c (racing-drone's switch) to come.
+Issue: [racing-drone#65](https://github.com/branes-ai/racing-drone/issues/65). 2a (#1) and 2b (#3) here, released as v0.1.0, and 2c, racing-drone's switch ([racing-drone#66](https://github.com/branes-ai/racing-drone/pull/66)).
 
 ## Goal
 
