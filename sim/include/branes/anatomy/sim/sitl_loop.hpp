@@ -8,10 +8,10 @@
 /// the simulator, the stack, and its pass-through channels (racing-drone:
 /// apps/sitl/main.cpp).
 
-#include <branes/anatomy/compose/tick.hpp>
 #include <branes/anatomy/harness/runner.hpp>
 #include <branes/anatomy/log/log.hpp>
-#include <branes/anatomy/msg/codec.hpp>
+#include <branes/anatomy/mobility/compose/tick.hpp>
+#include <branes/anatomy/mobility/msg/codec.hpp>
 #include <branes/anatomy/result.hpp>
 #include <branes/anatomy/sim/basic_simulator.hpp>
 

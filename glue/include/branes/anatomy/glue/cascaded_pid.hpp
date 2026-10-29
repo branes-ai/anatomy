@@ -52,12 +52,12 @@
 ///   I3: last_t_ never decreases               — constrains last_t_
 
 #include <branes/anatomy/glue/reflex_params.hpp>
-#include <branes/anatomy/msg/control.hpp>
-#include <branes/anatomy/msg/daa.hpp>
-#include <branes/anatomy/msg/estimate.hpp>
+#include <branes/anatomy/mobility/msg/control.hpp>
+#include <branes/anatomy/mobility/msg/daa.hpp>
+#include <branes/anatomy/mobility/msg/estimate.hpp>
+#include <branes/anatomy/mobility/slots/context.hpp>
 #include <branes/anatomy/msg/time.hpp>
 #include <branes/anatomy/result.hpp>
-#include <branes/anatomy/slots/context.hpp>
 #include <branes/reflex/control/attitude.hpp>
 #include <branes/reflex/control/cascade.hpp>
 #include <branes/reflex/control/position.hpp>

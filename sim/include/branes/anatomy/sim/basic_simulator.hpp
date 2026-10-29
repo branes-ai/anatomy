@@ -50,18 +50,18 @@
 ///   I3: every period is > 0, and the physics period ≤ min(10 ms, τ)
 ///   I4: the same inputs (configs, seed, commands) give the same events
 
-#include <branes/anatomy/config/scenario.hpp>
-#include <branes/anatomy/config/vehicle.hpp>
-#include <branes/anatomy/harness/synthetic.hpp>
 #include <branes/anatomy/log/log.hpp>
+#include <branes/anatomy/mobility/config/scenario.hpp>
+#include <branes/anatomy/mobility/config/vehicle.hpp>
+#include <branes/anatomy/mobility/harness/synthetic.hpp>
+#include <branes/anatomy/mobility/msg/codec.hpp>
+#include <branes/anatomy/mobility/msg/control.hpp>
+#include <branes/anatomy/mobility/msg/imu.hpp>
+#include <branes/anatomy/mobility/msg/region.hpp>
+#include <branes/anatomy/mobility/msg/truth.hpp>
 #include <branes/anatomy/msg/camera.hpp>
-#include <branes/anatomy/msg/codec.hpp>
-#include <branes/anatomy/msg/control.hpp>
 #include <branes/anatomy/msg/geometry.hpp>
-#include <branes/anatomy/msg/imu.hpp>
-#include <branes/anatomy/msg/region.hpp>
 #include <branes/anatomy/msg/time.hpp>
-#include <branes/anatomy/msg/truth.hpp>
 #include <branes/anatomy/result.hpp>
 #include <branes/anatomy/sim/camera_model.hpp>
 #include <branes/anatomy/sim/fc.hpp>

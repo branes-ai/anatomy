@@ -3,10 +3,10 @@
 // no faults) to edit per test.
 #pragma once
 
-#include <branes/anatomy/config/scenario.hpp>
-#include <branes/anatomy/config/vehicle.hpp>
 #include <branes/anatomy/log/log.hpp>
-#include <branes/anatomy/msg/region.hpp>
+#include <branes/anatomy/mobility/config/scenario.hpp>
+#include <branes/anatomy/mobility/config/vehicle.hpp>
+#include <branes/anatomy/mobility/msg/region.hpp>
 #include <branes/anatomy/sim/basic_simulator.hpp>
 
 #include <catch2/catch_test_macros.hpp>

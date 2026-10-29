@@ -14,9 +14,9 @@
 
 #include <branes/anatomy/compose/profile.hpp>
 #include <branes/anatomy/config/baseline.hpp>
-#include <branes/anatomy/config/vehicle.hpp>
-#include <branes/anatomy/msg/region.hpp>
-#include <branes/anatomy/msg/truth.hpp>
+#include <branes/anatomy/mobility/config/vehicle.hpp>
+#include <branes/anatomy/mobility/msg/region.hpp>
+#include <branes/anatomy/mobility/msg/truth.hpp>
 #include <branes/anatomy/slots/slot_context.hpp>
 
 #include <concepts>

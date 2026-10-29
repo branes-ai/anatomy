@@ -15,9 +15,9 @@
 ///    Pinhole–radtan: (x', y') = (x/z, y/z) with radial k1, k2 and tangential
 ///    p1, p2 distortion.
 
-#include <branes/anatomy/config/vehicle.hpp>
+#include <branes/anatomy/mobility/config/vehicle.hpp>
+#include <branes/anatomy/mobility/msg/truth.hpp>
 #include <branes/anatomy/msg/geometry.hpp>
-#include <branes/anatomy/msg/truth.hpp>
 
 #include <array>
 #include <cmath>

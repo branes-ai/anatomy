@@ -1,15 +1,14 @@
-# sdk/ — the framework library.
+# sdk/ — the core library (anatomy docs/adr/0001, docs/plan/split-libraries).
 #
-# `branes::anatomy` carries the data contracts (msg/), the slot concepts, their
-# construction and the nulls (slots/), the stack concept (compose/), and the
-# harness pieces (harness/) as headers, and compiles the config loaders
-# (yaml-cpp), the replay log, and SHA-256. Everything is templated on the
-# scalar type except the load-time configs and the log, which are double.
+# `branes::anatomy` carries what every kind of mission needs and names no
+# vehicle: time and geometry, the camera frame and its codec (msg/), the stack
+# profile (compose/), the slot construction (slots/), the baseline config, the
+# replay log, and the harness (runner, replay, flight ticks, batch pool) as
+# headers, and compiles the baseline loader (yaml-cpp), the log, and SHA-256.
+# A roaming vehicle's contracts are branes::anatomy_mobility (mobility/).
 
 add_library(branes_anatomy STATIC
     src/config/baseline.cpp
-    src/config/scenario.cpp
-    src/config/vehicle.cpp
     src/log/log.cpp
     src/util/sha256.cpp
 )

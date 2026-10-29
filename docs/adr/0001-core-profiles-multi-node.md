@@ -38,6 +38,15 @@ Point 5 is not only Edge AI's need. Multi-drone racing, cooperative detect-and-a
 
    A mission links the core and the profile it needs. racing-drone and scout-drone link mobility. An Edge AI mission links sensing. counter-uas links both.
 
+   **Amended by step 2** ([plan](../plan/split-libraries/README.md), anatomy#10). The split as built departs from the table in five places:
+   1. **The reflex glue is its own target,** `branes::anatomy_glue` on mobility, not part of `mobility_sim`. A flight stack uses `CascadedPid` without the simulator.
+   2. **The flight harness is in core.** Since step 1, `run_ticks` drives any stack.
+   3. **The scalar-type sweep stays in `mobility_sim`.** Its only client runs the closed loop. It moves to core when a non-mobile client sweeps scalar types.
+   4. **The scenario config and the log dump are in mobility, whole.** Each mixes a neutral mechanism with a vehicle's settings or channels. Their neutral parts are extracted when a non-mobile client needs them (Decision 3).
+   5. **`log::Channel` keeps every enumerator in core,** including the mobility profile's channels. The enum is the registry of channel ids, and the ids never change meaning. A profile that ships in anatomy registers its channels there. A mission's channels stay outside it, named to the log reader.
+
+   Every C++ name kept its namespace. The mobility headers are under `<branes/anatomy/mobility/...>`, and `anatomy_sim` became `anatomy_mobility_sim`.
+
 2. **The core's contracts take the mission's types where they assumed a vehicle.** This is the same move ADR 0008 made for the world type.
    - **Stack outputs:** `RunnableStack` names its output type, and the Runner encodes it through the mission's codec. Mobility's output is `TickOutput`; sensing's is an assessment.
    - **Truth:** the simulator's truth and the scorer's `on_truth` take the profile's truth type. For mobility that is the ego `TruthState`; for sensing, the world's targets.
@@ -70,4 +79,4 @@ Point 5 is not only Edge AI's need. Multi-drone racing, cooperative detect-and-a
 - **The sensing profile's contracts are not designed here.** Measurement types, assessment types and the scene simulator are decided with the first Edge AI mission. This ADR fixes only where they go and what they must not break.
 - **One risk:** a core that is generic over outputs, truth and events adds compile-time genericity across the runner, simulator and scorer. The mitigation is ADR 0008's: change the core only with a client in hand, and check every change against the existing clients' byte-identical outputs.
 
-**Current state:** accepted. Step 1 is done ([plan](../plan/generalize-core/README.md), [anatomy#7](https://github.com/branes-ai/anatomy/issues/7); anatomy v0.2.0). Step 2 is in progress ([plan](../plan/split-libraries/README.md), [anatomy#10](https://github.com/branes-ai/anatomy/issues/10)).
+**Current state:** accepted. Step 1 is done ([plan](../plan/generalize-core/README.md), [anatomy#7](https://github.com/branes-ai/anatomy/issues/7); anatomy v0.2.0). Step 2 is built in anatomy ([plan](../plan/split-libraries/README.md), [anatomy#10](https://github.com/branes-ai/anatomy/issues/10)); racing-drone moves to it with anatomy v0.3.0.

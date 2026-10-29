@@ -16,10 +16,10 @@
 /// sim_config.yaml one YAML document per record.
 
 #include <branes/anatomy/log/log.hpp>
+#include <branes/anatomy/mobility/msg/codec.hpp>
+#include <branes/anatomy/mobility/msg/control.hpp>
+#include <branes/anatomy/mobility/msg/estimate.hpp>
 #include <branes/anatomy/msg/camera.hpp>
-#include <branes/anatomy/msg/codec.hpp>
-#include <branes/anatomy/msg/control.hpp>
-#include <branes/anatomy/msg/estimate.hpp>
 #include <branes/anatomy/msg/geometry.hpp>
 #include <branes/anatomy/msg/time.hpp>
 #include <branes/anatomy/result.hpp>

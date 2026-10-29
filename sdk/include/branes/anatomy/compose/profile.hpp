@@ -9,7 +9,7 @@
 /// The harness (harness/runner.hpp) handles the events every mission has —
 /// the tick, the truth (SITL), sim_config — and hands the profile's own
 /// channels to the profile. The mobility profile is MobilityProfile
-/// (compose/tick.hpp).
+/// (mobility/compose/tick.hpp).
 ///
 /// Model: a profile P is stateless; every member is static.
 ///   truth_type<T>     : the simulated truth, in scalar type T
