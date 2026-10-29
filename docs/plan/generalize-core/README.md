@@ -128,7 +128,7 @@ Step 2 decides them with the library split.
 
 **anatomy (1a):**
 1. All 102 existing tests pass. The only edits to them are the test stacks' new `using profile` lines and the include they need.
-2. A new test mission with a non-mobile profile: a truth type of two target positions, one input channel (id 7) carrying a scalar measurement, and an output type of one assessment on output channel 19. Its `on_tick` output depends on the measurements and the truth it was fed. It passes three checks:
+2. A new test mission with a non-mobile profile: a truth type of two target positions, one input channel (id 8; first written as 7, which `neutral_mission.cpp` already uses for its depth channel) carrying a scalar measurement, and an output type of one assessment on output channel 19. Its `on_tick` output depends on the measurements and the truth it was fed. It passes three checks:
    - the Runner feeds it, and rejects an undecodable and a non-`valid` record of each kind with an error;
    - `replay_log` and `verify_outputs` reproduce a run's outputs record for record;
    - `static_assert`s: the stack is a `RunnableStack`; a stack without `profile` is not; a profile that breaks P1 or P2 is not a `StackProfile`.
