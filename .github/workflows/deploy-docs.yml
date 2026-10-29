@@ -16,6 +16,7 @@ on:
       - 'docs/**'
       - 'docs-site/**'
       - 'sdk/include/**'
+      - 'mobility/include/**'
       - 'sim/include/**'
       - 'glue/include/**'
       - '.github/workflows/deploy-docs.yml'

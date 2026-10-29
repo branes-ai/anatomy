@@ -21,10 +21,10 @@
 ///   I1: last_, if set, passes valid(TruthState)   — constrains last_
 ///   I2: last_, if set, has last_->t ≤ latest_     — constrains last_, latest_
 
-#include <branes/anatomy/msg/estimate.hpp>
-#include <branes/anatomy/msg/imu.hpp>
+#include <branes/anatomy/mobility/msg/estimate.hpp>
+#include <branes/anatomy/mobility/msg/imu.hpp>
+#include <branes/anatomy/mobility/msg/truth.hpp>
 #include <branes/anatomy/msg/time.hpp>
-#include <branes/anatomy/msg/truth.hpp>
 
 #include <cassert>
 #include <optional>

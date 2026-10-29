@@ -10,7 +10,7 @@
 /// default-constructed. The choice is made per slot at compile time, so the
 /// null slots stay as they are. The context is the mission's: what it holds is
 /// the profile's and the mission's choice (a roaming vehicle's:
-/// BasicSlotContext, slots/context.hpp). Every context carries the baseline
+/// BasicSlotContext, mobility/slots/context.hpp). Every context carries the baseline
 /// file, whose `parameters:` block parameter_in() reads.
 
 #include <branes/anatomy/config/baseline.hpp>

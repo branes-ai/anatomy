@@ -1,6 +1,6 @@
-#include <branes/anatomy/config/vehicle.hpp>
+#include <branes/anatomy/mobility/config/vehicle.hpp>
 
-#include "parse.hpp"
+#include "config/parse.hpp"  // the core's private YAML helpers (sdk/src/config/)
 
 namespace branes::anatomy::config {
 

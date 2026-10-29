@@ -43,6 +43,7 @@ set(ANATOMY_CMAKE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cmake CACHE INTERNAL "anatomy'
 
 # The framework library: data contracts, slots, configs, the log, the harness.
 add_subdirectory(sdk)
+add_subdirectory(mobility)
 
 # The adapters from reflex components to the slots.
 add_subdirectory(glue)

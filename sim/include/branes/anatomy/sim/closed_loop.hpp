@@ -9,13 +9,13 @@
 /// mission supplies the simulator, the stack, the scorer and its channels
 /// (racing-drone: batch.hpp, run_one).
 
-#include <branes/anatomy/compose/tick.hpp>
 #include <branes/anatomy/harness/runner.hpp>
 #include <branes/anatomy/log/log.hpp>
-#include <branes/anatomy/msg/codec.hpp>
-#include <branes/anatomy/msg/control.hpp>
-#include <branes/anatomy/msg/estimate.hpp>
-#include <branes/anatomy/msg/truth.hpp>
+#include <branes/anatomy/mobility/compose/tick.hpp>
+#include <branes/anatomy/mobility/msg/codec.hpp>
+#include <branes/anatomy/mobility/msg/control.hpp>
+#include <branes/anatomy/mobility/msg/estimate.hpp>
+#include <branes/anatomy/mobility/msg/truth.hpp>
 #include <branes/anatomy/sim/basic_simulator.hpp>
 
 #include <algorithm>

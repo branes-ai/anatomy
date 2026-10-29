@@ -31,8 +31,8 @@
 ///   I3: every delivered axis has |value| ≤ range, and its saturation bit is
 ///       set iff the unclipped value was beyond the range     — (per sample)
 
-#include <branes/anatomy/config/vehicle.hpp>
-#include <branes/anatomy/msg/imu.hpp>
+#include <branes/anatomy/mobility/config/vehicle.hpp>
+#include <branes/anatomy/mobility/msg/imu.hpp>
 #include <branes/anatomy/util/splitmix64.hpp>
 
 #include <cassert>

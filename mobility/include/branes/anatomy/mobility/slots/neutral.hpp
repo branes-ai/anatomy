@@ -8,13 +8,13 @@
 ///
 /// Every slot is templated on the scalar type T (cortex ADR 0015).
 
-#include <branes/anatomy/msg/control.hpp>
-#include <branes/anatomy/msg/daa.hpp>
-#include <branes/anatomy/msg/estimate.hpp>
-#include <branes/anatomy/msg/fc.hpp>
-#include <branes/anatomy/msg/imu.hpp>
-#include <branes/anatomy/msg/intruders.hpp>
-#include <branes/anatomy/msg/region.hpp>
+#include <branes/anatomy/mobility/msg/control.hpp>
+#include <branes/anatomy/mobility/msg/daa.hpp>
+#include <branes/anatomy/mobility/msg/estimate.hpp>
+#include <branes/anatomy/mobility/msg/fc.hpp>
+#include <branes/anatomy/mobility/msg/imu.hpp>
+#include <branes/anatomy/mobility/msg/intruders.hpp>
+#include <branes/anatomy/mobility/msg/region.hpp>
 #include <branes/anatomy/msg/time.hpp>
 
 #include <concepts>

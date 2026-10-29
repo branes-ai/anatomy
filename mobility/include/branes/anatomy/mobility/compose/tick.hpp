@@ -13,13 +13,13 @@
 
 #include <branes/anatomy/compose/profile.hpp>
 #include <branes/anatomy/log/log.hpp>
+#include <branes/anatomy/mobility/msg/codec.hpp>
+#include <branes/anatomy/mobility/msg/control.hpp>
+#include <branes/anatomy/mobility/msg/estimate.hpp>
+#include <branes/anatomy/mobility/msg/imu.hpp>
+#include <branes/anatomy/mobility/msg/truth.hpp>
 #include <branes/anatomy/msg/camera.hpp>
-#include <branes/anatomy/msg/codec.hpp>
-#include <branes/anatomy/msg/control.hpp>
-#include <branes/anatomy/msg/estimate.hpp>
-#include <branes/anatomy/msg/imu.hpp>
 #include <branes/anatomy/msg/time.hpp>
-#include <branes/anatomy/msg/truth.hpp>
 #include <branes/anatomy/result.hpp>
 
 #include <array>
