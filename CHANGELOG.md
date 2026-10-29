@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/branes-ai/anatomy/compare/v0.3.0...v0.3.1) (2026-10-29)
+
+
+### Documentation
+
+* publish the plans and adrs on the architecture site ([#14](https://github.com/branes-ai/anatomy/issues/14)) ([031f860](https://github.com/branes-ai/anatomy/commit/031f8607666f4c60cf53f22685b2bf14a1b54748)), closes [#10](https://github.com/branes-ai/anatomy/issues/10)
+
 ## [0.3.0](https://github.com/branes-ai/anatomy/compare/v0.2.0...v0.3.0) (2026-10-29)
 
 
