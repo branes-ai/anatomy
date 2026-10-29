@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0](https://github.com/branes-ai/anatomy/compare/v0.2.0...v0.3.0) (2026-10-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* the mobility headers moved to <branes/anatomy/mobility/...>, and a mobile mission links branes::anatomy_mobility; branes::anatomy_sim is now branes::anatomy_mobility_sim.
+* msg/sensors.hpp is gone: include msg/camera.hpp or msg/imu.hpp. BasicSlotContext, MissionWorld and TruthConsumer are in slots/context.hpp. The harness headers no longer bring in TickOutput or MobilityProfile; include compose/tick.hpp.
+
+### Features
+
+* split the libraries into core, mobility and mobility_sim ([#13](https://github.com/branes-ai/anatomy/issues/13)) ([d522f0a](https://github.com/branes-ai/anatomy/commit/d522f0ac8bfeb3f8756dbcf2e1b33739f52fbae5))
+
+
+### Code Refactoring
+
+* split the mixed headers along their core and mobility seams ([#11](https://github.com/branes-ai/anatomy/issues/11)) ([3dfabf4](https://github.com/branes-ai/anatomy/commit/3dfabf4b2e185894e80afd6c2d0256c983ea5155))
+
 ## [0.2.0](https://github.com/branes-ai/anatomy/compare/v0.1.1...v0.2.0) (2026-10-29)
 
 
