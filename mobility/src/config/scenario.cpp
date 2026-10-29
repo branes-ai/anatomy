@@ -1,6 +1,6 @@
-#include <branes/anatomy/config/scenario.hpp>
+#include <branes/anatomy/mobility/config/scenario.hpp>
 
-#include "parse.hpp"
+#include "config/parse.hpp"  // the core's private YAML helpers (sdk/src/config/)
 
 #include <array>
 #include <cassert>

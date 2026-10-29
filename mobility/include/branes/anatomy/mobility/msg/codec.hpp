@@ -8,11 +8,11 @@
 /// payload has exactly the expected size and the decoded value is valid().
 /// The camera frame's codec is msg/camera_codec.hpp, which this includes.
 
+#include <branes/anatomy/mobility/msg/control.hpp>
+#include <branes/anatomy/mobility/msg/estimate.hpp>
+#include <branes/anatomy/mobility/msg/imu.hpp>
+#include <branes/anatomy/mobility/msg/truth.hpp>
 #include <branes/anatomy/msg/camera_codec.hpp>
-#include <branes/anatomy/msg/control.hpp>
-#include <branes/anatomy/msg/estimate.hpp>
-#include <branes/anatomy/msg/imu.hpp>
-#include <branes/anatomy/msg/truth.hpp>
 #include <branes/anatomy/util/bytes.hpp>
 
 #include <array>

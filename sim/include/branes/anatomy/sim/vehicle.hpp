@@ -11,10 +11,10 @@
 /// randomization stream, and the start pose is jittered. The draws are
 /// returned so the harness can log them.
 
-#include <branes/anatomy/config/scenario.hpp>
-#include <branes/anatomy/config/vehicle.hpp>
 #include <branes/anatomy/glue/reflex_params.hpp>
-#include <branes/anatomy/msg/region.hpp>
+#include <branes/anatomy/mobility/config/scenario.hpp>
+#include <branes/anatomy/mobility/config/vehicle.hpp>
+#include <branes/anatomy/mobility/msg/region.hpp>
 #include <branes/anatomy/result.hpp>
 #include <branes/anatomy/util/splitmix64.hpp>
 #include <branes/reflex/model/quadrotor.hpp>

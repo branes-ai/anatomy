@@ -13,9 +13,17 @@ foreach(source ${SDK_SRC})
     target_compile_definitions(${name} PRIVATE ANATOMY_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 endforeach()
 
+# ── Mobility profile (mobility/) ───────────────────────────────────────────
+file(GLOB MOBILITY_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mobility/*.cpp)
+compile_all(FOLDER "Tests/mobility" LIBS branes::anatomy_mobility SOURCES ${MOBILITY_SRC})
+foreach(source ${MOBILITY_SRC})
+    get_filename_component(name ${source} NAME_WE)
+    target_compile_definitions(${name} PRIVATE ANATOMY_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+endforeach()
+
 # ── Simulator and glue (sim/, glue/) ───────────────────────────────────────
 file(GLOB SIM_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/sim/*.cpp)
-compile_all(FOLDER "Tests/sim" LIBS branes::anatomy_sim SOURCES ${SIM_SRC})
+compile_all(FOLDER "Tests/sim" LIBS branes::anatomy_mobility_sim SOURCES ${SIM_SRC})
 foreach(source ${SIM_SRC})
     get_filename_component(name ${source} NAME_WE)
     target_compile_definitions(${name} PRIVATE ANATOMY_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
@@ -25,11 +33,22 @@ endforeach()
 # The casts and the contracts in every type of the precision sweep
 # (sim/sweep_types.hpp); these tests link Universal.
 file(GLOB PRECISION_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/precision/*.cpp)
-compile_all(FOLDER "Tests/precision" LIBS branes::anatomy_sim universal::universal SOURCES ${PRECISION_SRC})
+compile_all(FOLDER "Tests/precision" LIBS branes::anatomy_mobility_sim universal::universal SOURCES ${PRECISION_SRC})
 foreach(source ${PRECISION_SRC})
     get_filename_component(name ${source} NAME_WE)
     target_compile_definitions(${name} PRIVATE ANATOMY_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 endforeach()
+
+# ── Every header compiles alone, against its own library ───────────────────
+# One translation unit per header, linked to that header's library and nothing
+# else, so a core header that includes a mobility one fails the build
+# (cmake/header_check.cmake; docs/plan/split-libraries).
+include(${PROJECT_SOURCE_DIR}/cmake/header_check.cmake)
+anatomy_header_check(NAME headers_core ROOT ${PROJECT_SOURCE_DIR}/sdk/include LIBS branes::anatomy)
+anatomy_header_check(NAME headers_mobility ROOT ${PROJECT_SOURCE_DIR}/mobility/include LIBS branes::anatomy_mobility)
+anatomy_header_check(NAME headers_glue ROOT ${PROJECT_SOURCE_DIR}/glue/include LIBS branes::anatomy_glue)
+anatomy_header_check(NAME headers_mobility_sim ROOT ${PROJECT_SOURCE_DIR}/sim/include
+    LIBS branes::anatomy_mobility_sim universal::universal)
 
 # ── Code that must not compile ─────────────────────────────────────────────
 # A TimeBase whose Wide type has fewer significand digits than T is a

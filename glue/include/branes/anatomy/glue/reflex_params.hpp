@@ -7,7 +7,7 @@
 /// vehicle file (CascadedPid). The vehicle file has no battery model yet, so
 /// the reflex defaults (a large battery, no sag) stay.
 
-#include <branes/anatomy/config/vehicle.hpp>
+#include <branes/anatomy/mobility/config/vehicle.hpp>
 #include <branes/anatomy/result.hpp>
 #include <branes/reflex/model/quadrotor.hpp>
 

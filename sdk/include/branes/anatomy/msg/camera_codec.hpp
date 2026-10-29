@@ -2,7 +2,7 @@
 /// @file camera_codec.hpp
 /// @brief Log payload encoding of CameraFrameRecord.
 ///
-/// As for every codec (msg/codec.hpp): logs are double precision, each
+/// As for every codec (mobility/msg/codec.hpp): logs are double precision, each
 /// encode() writes every field explicitly (util/bytes.hpp), and decode_frame()
 /// returns nullopt unless the payload has exactly the expected size and the
 /// decoded record is valid().

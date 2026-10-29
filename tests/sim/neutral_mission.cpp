@@ -4,21 +4,21 @@
 // (racing-drone docs/plan/framework-split), where it showed that the framework
 // pieces work for a mission that is not racing.
 
-#include <branes/anatomy/compose/tick.hpp>
 #include <branes/anatomy/config/baseline.hpp>
-#include <branes/anatomy/config/scenario.hpp>
-#include <branes/anatomy/config/vehicle.hpp>
 #include <branes/anatomy/glue/cascaded_pid.hpp>
 #include <branes/anatomy/harness/runner.hpp>
 #include <branes/anatomy/log/log.hpp>
-#include <branes/anatomy/msg/codec.hpp>
-#include <branes/anatomy/msg/region.hpp>
+#include <branes/anatomy/mobility/compose/tick.hpp>
+#include <branes/anatomy/mobility/config/scenario.hpp>
+#include <branes/anatomy/mobility/config/vehicle.hpp>
+#include <branes/anatomy/mobility/msg/codec.hpp>
+#include <branes/anatomy/mobility/msg/region.hpp>
+#include <branes/anatomy/mobility/slots/context.hpp>
+#include <branes/anatomy/mobility/slots/ground_truth_core.hpp>
+#include <branes/anatomy/mobility/slots/neutral.hpp>
+#include <branes/anatomy/mobility/slots/neutral_nulls.hpp>
 #include <branes/anatomy/sim/basic_simulator.hpp>
 #include <branes/anatomy/sim/closed_loop.hpp>
-#include <branes/anatomy/slots/context.hpp>
-#include <branes/anatomy/slots/ground_truth_core.hpp>
-#include <branes/anatomy/slots/neutral.hpp>
-#include <branes/anatomy/slots/neutral_nulls.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 

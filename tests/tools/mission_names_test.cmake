@@ -4,11 +4,11 @@
 # racing-drone, as an example), and must not contain any of the tokens below:
 # racing-drone's namespace, include root, and task types.
 #
-# Inputs: SOURCE_DIR; DIRS (default: sdk sim glue tests cmake, relative to
+# Inputs: SOURCE_DIR; DIRS (default: sdk mobility sim glue tests cmake, relative to
 # SOURCE_DIR); SKIP (a path prefix to skip, relative to SOURCE_DIR).
 
 if(NOT DIRS)
-    set(DIRS sdk sim glue tests cmake)
+    set(DIRS sdk mobility sim glue tests cmake)
 endif()
 set(tokens
     "branes::racing" "branes/racing/" "namespace racing" "RACING_" "racing_"

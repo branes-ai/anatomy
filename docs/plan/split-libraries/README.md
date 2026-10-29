@@ -1,6 +1,6 @@
 # Plan: the libraries split into core, mobility and mobility_sim
 
-Issue: [anatomy#10](https://github.com/branes-ai/anatomy/issues/10). Status: approved; PR 2a in progress, 2b and 2c to come.
+Issue: [anatomy#10](https://github.com/branes-ai/anatomy/issues/10). Status: approved; 2a done (#11), 2b in progress, 2c to come.
 
 ## Goal
 
@@ -65,7 +65,7 @@ Step 2 of [ADR 0001](../../adr/0001-core-profiles-multi-node.md) (Decision 1, or
 
 **The private YAML helpers** (`sdk/src/config/parse.hpp`) stay in core's `src/`. Mobility's two sources include them through a private include directory, which is named in `mobility/CMakeLists.txt`.
 
-## Departures from ADR 0001's table, to be recorded in the ADR
+## Departures from ADR 0001's table, recorded in the ADR (2b)
 
 1. **The reflex glue is its own target** (`anatomy_glue`, on mobility), not part of `mobility_sim`. A flight stack uses `CascadedPid` without the simulator, and racing-drone's flight builds link the glue alone today.
 2. **The flight harness is in core.** Since step 1, `run_ticks` drives any stack.

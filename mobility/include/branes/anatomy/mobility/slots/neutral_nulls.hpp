@@ -6,7 +6,7 @@
 /// deterministic: each returns a valid, fixed output derived only from its
 /// inputs, so a mission's null baseline exercises the framework end to end.
 
-#include <branes/anatomy/slots/neutral.hpp>
+#include <branes/anatomy/mobility/slots/neutral.hpp>
 
 #include <optional>
 
