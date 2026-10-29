@@ -6,10 +6,12 @@
 /// Each encode() writes every field explicitly (util/bytes.hpp), so equal
 /// values encode to equal bytes. Each decode_*() returns nullopt unless the
 /// payload has exactly the expected size and the decoded value is valid().
+/// The camera frame's codec is msg/camera_codec.hpp, which this includes.
 
+#include <branes/anatomy/msg/camera_codec.hpp>
 #include <branes/anatomy/msg/control.hpp>
 #include <branes/anatomy/msg/estimate.hpp>
-#include <branes/anatomy/msg/sensors.hpp>
+#include <branes/anatomy/msg/imu.hpp>
 #include <branes/anatomy/msg/truth.hpp>
 #include <branes/anatomy/util/bytes.hpp>
 
@@ -66,33 +68,6 @@ inline Quat<double> get_quat(ByteReader& r) {
     q.z = r.f64();
     return q;
 }
-inline void put(ByteWriter& w, const FrameHeader& h) {
-    w.i64(h.t_mid.ns);
-    w.i64(h.exposure_ns);
-    w.i64(h.row_readout_ns);
-    w.u32(h.width);
-    w.u32(h.height);
-    w.u32(h.stride);
-    w.u8(static_cast<std::uint8_t>(h.format));
-    w.boolean(h.corrupted);
-}
-inline std::optional<FrameHeader> get_frame_header(ByteReader& r) {
-    FrameHeader h{};
-    h.t_mid.ns = r.i64();
-    h.exposure_ns = r.i64();
-    h.row_readout_ns = r.i64();
-    h.width = r.u32();
-    h.height = r.u32();
-    h.stride = r.u32();
-    const std::uint8_t f = r.u8();
-    if (f > static_cast<std::uint8_t>(PixelFormat::rgb8)) {
-        return std::nullopt;
-    }
-    h.format = static_cast<PixelFormat>(f);
-    h.corrupted = r.boolean();
-    return h;
-}
-
 }  // namespace detail
 
 // ── ImuSample ───────────────────────────────────────────────────────
@@ -121,31 +96,6 @@ inline std::optional<FrameHeader> get_frame_header(ByteReader& r) {
         return std::nullopt;
     }
     return s;
-}
-
-// ── CameraFrameRecord ───────────────────────────────────────────────
-
-[[nodiscard]] inline std::vector<std::byte> encode(const CameraFrameRecord& f) {
-    ByteWriter w;
-    detail::put(w, f.header);
-    w.u32(static_cast<std::uint32_t>(f.bytes.size()));
-    w.bytes(f.bytes);
-    return w.take();
-}
-
-[[nodiscard]] inline std::optional<CameraFrameRecord> decode_frame(std::span<const std::byte> b) {
-    ByteReader r(b);
-    auto h = detail::get_frame_header(r);
-    if (!h) {
-        return std::nullopt;
-    }
-    const std::uint32_t n = r.u32();
-    const auto pixels = r.bytes(n);
-    CameraFrameRecord f{*h, std::vector<std::byte>(pixels.begin(), pixels.end())};
-    if (!r.done() || !valid(f)) {
-        return std::nullopt;
-    }
-    return f;
 }
 
 // ── StateEstimate ───────────────────────────────────────────────────

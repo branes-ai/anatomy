@@ -6,8 +6,9 @@
 
 #include <branes/anatomy/config/vehicle.hpp>
 #include <branes/anatomy/log/log.hpp>
+#include <branes/anatomy/msg/camera.hpp>
 #include <branes/anatomy/msg/codec.hpp>
-#include <branes/anatomy/msg/sensors.hpp>
+#include <branes/anatomy/msg/imu.hpp>
 #include <branes/anatomy/msg/time.hpp>
 #include <branes/anatomy/result.hpp>
 #include <branes/anatomy/util/splitmix64.hpp>

@@ -10,7 +10,7 @@
 /// closed. The mission supplies the stack and its pass-through channels
 /// (racing-drone: apps/replay/main.cpp).
 
-#include <branes/anatomy/compose/tick.hpp>
+#include <branes/anatomy/compose/profile.hpp>
 #include <branes/anatomy/harness/runner.hpp>
 #include <branes/anatomy/log/log.hpp>
 #include <branes/anatomy/result.hpp>

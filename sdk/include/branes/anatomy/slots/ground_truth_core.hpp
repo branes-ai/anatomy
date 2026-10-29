@@ -22,7 +22,7 @@
 ///   I2: last_, if set, has last_->t ≤ latest_     — constrains last_, latest_
 
 #include <branes/anatomy/msg/estimate.hpp>
-#include <branes/anatomy/msg/sensors.hpp>
+#include <branes/anatomy/msg/imu.hpp>
 #include <branes/anatomy/msg/time.hpp>
 #include <branes/anatomy/msg/truth.hpp>
 

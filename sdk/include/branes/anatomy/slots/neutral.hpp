@@ -12,9 +12,9 @@
 #include <branes/anatomy/msg/daa.hpp>
 #include <branes/anatomy/msg/estimate.hpp>
 #include <branes/anatomy/msg/fc.hpp>
+#include <branes/anatomy/msg/imu.hpp>
 #include <branes/anatomy/msg/intruders.hpp>
 #include <branes/anatomy/msg/region.hpp>
-#include <branes/anatomy/msg/sensors.hpp>
 #include <branes/anatomy/msg/time.hpp>
 
 #include <concepts>

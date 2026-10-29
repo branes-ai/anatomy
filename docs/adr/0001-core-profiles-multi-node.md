@@ -70,4 +70,4 @@ Point 5 is not only Edge AI's need. Multi-drone racing, cooperative detect-and-a
 - **The sensing profile's contracts are not designed here.** Measurement types, assessment types and the scene simulator are decided with the first Edge AI mission. This ADR fixes only where they go and what they must not break.
 - **One risk:** a core that is generic over outputs, truth and events adds compile-time genericity across the runner, simulator and scorer. The mitigation is ADR 0008's: change the core only with a client in hand, and check every change against the existing clients' byte-identical outputs.
 
-**Current state:** accepted. Step 1 is in progress ([plan](../plan/generalize-core/README.md), [anatomy#7](https://github.com/branes-ai/anatomy/issues/7)).
+**Current state:** accepted. Step 1 is done ([plan](../plan/generalize-core/README.md), [anatomy#7](https://github.com/branes-ai/anatomy/issues/7); anatomy v0.2.0). Step 2 is in progress ([plan](../plan/split-libraries/README.md), [anatomy#10](https://github.com/branes-ai/anatomy/issues/10)).

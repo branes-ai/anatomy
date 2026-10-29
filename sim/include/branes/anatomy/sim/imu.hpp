@@ -32,7 +32,7 @@
 ///       set iff the unclipped value was beyond the range     — (per sample)
 
 #include <branes/anatomy/config/vehicle.hpp>
-#include <branes/anatomy/msg/sensors.hpp>
+#include <branes/anatomy/msg/imu.hpp>
 #include <branes/anatomy/util/splitmix64.hpp>
 
 #include <cassert>
