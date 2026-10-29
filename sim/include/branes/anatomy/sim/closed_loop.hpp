@@ -51,8 +51,9 @@ struct BasicRun {
 
 /// Run the closed loop of `sim` and `stack`, scored by `scorer`, and return the
 /// score, or the error that stopped the run. `mission` is the mission's
-/// pass-through channels (harness::Runner).
-template <class ScoreT, class Oracle, RunnableStack StackT, RunScorer ScorerT>
+/// pass-through channels (harness::Runner). The loop decodes the stack's
+/// command and estimate, so it takes a mobile stack (MobileStack) only.
+template <class ScoreT, class Oracle, MobileStack StackT, RunScorer ScorerT>
 [[nodiscard]] BasicRun<ScoreT> run_closed_loop(BasicSimulator<Oracle>& sim,
                                                StackT& stack,
                                                std::span<const log::Channel> mission,

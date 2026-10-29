@@ -1,6 +1,6 @@
 # ADR 0001: a mission-neutral core with mobility and sensing profiles, and a multi-node layer
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-28
 **Related:** [racing-drone ADR 0008](https://github.com/branes-ai/racing-drone/blob/main/docs/adr/0008-anatomy-mission-framework.md) (anatomy's origin, and its rule that a new client drives each generalization); [racing-drone ADR 0006](https://github.com/branes-ai/racing-drone/blob/main/docs/adr/0006-hot-path-in-process-zenoh-off-path.md) (in-process hot path, Zenoh off it); the [move from racing-drone](../plan/move-from-racing-drone/README.md)
 
@@ -70,4 +70,4 @@ Point 5 is not only Edge AI's need. Multi-drone racing, cooperative detect-and-a
 - **The sensing profile's contracts are not designed here.** Measurement types, assessment types and the scene simulator are decided with the first Edge AI mission. This ADR fixes only where they go and what they must not break.
 - **One risk:** a core that is generic over outputs, truth and events adds compile-time genericity across the runner, simulator and scorer. The mitigation is ADR 0008's: change the core only with a client in hand, and check every change against the existing clients' byte-identical outputs.
 
-**Current state:** proposed. No step has started.
+**Current state:** accepted. Step 1 is in progress ([plan](../plan/generalize-core/README.md), [anatomy#7](https://github.com/branes-ai/anatomy/issues/7)).

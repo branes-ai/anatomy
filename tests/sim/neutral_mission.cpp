@@ -48,6 +48,7 @@ constexpr log::Channel kDepth = static_cast<log::Channel>(7);
 class FieldStack {
 public:
     using scalar_type = double;
+    using profile = MobilityProfile;
 
     void on_imu(const ImuSample<double>& s) {
         est_.process_imu(s);
@@ -70,6 +71,7 @@ private:
     NullController<double> ctl_;
 };
 static_assert(RunnableStack<FieldStack>);
+static_assert(MobileStack<FieldStack>);
 
 /// The mission's score: how many truth records the run saw.
 struct FieldScore {
