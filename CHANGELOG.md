@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/branes-ai/anatomy/compare/v0.3.2...v0.4.0) (2026-10-30)
+
+
+### Features
+
+* **docs-site:** build the site with docs-kit v0.1.0 ([#19](https://github.com/branes-ai/anatomy/issues/19)) ([7bdff34](https://github.com/branes-ai/anatomy/commit/7bdff34ad6ea5ca2d4d0dd8e6404e15ead2c62c9))
+
 ## [0.3.2](https://github.com/branes-ai/anatomy/compare/v0.3.1...v0.3.2) (2026-10-29)
 
 
