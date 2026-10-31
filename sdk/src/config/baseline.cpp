@@ -1,7 +1,6 @@
 #include <branes/anatomy/config/baseline.hpp>
+#include <branes/anatomy/config/yaml.hpp>
 #include <branes/anatomy/util/sha256.hpp>
-
-#include "parse.hpp"
 
 #include <cmath>
 #include <exception>
@@ -9,7 +8,7 @@
 
 namespace branes::anatomy::config {
 
-using namespace detail;
+using namespace yaml;
 
 // ── Baseline ────────────────────────────────────────────────────────
 
