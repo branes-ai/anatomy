@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/branes-ai/anatomy/compare/v0.5.0...v0.6.0) (2026-10-31)
+
+
+### Features
+
+* run a stack whose profile adds inputs in the mobile loops ([#26](https://github.com/branes-ai/anatomy/issues/26)) ([d359987](https://github.com/branes-ai/anatomy/commit/d359987f2da5693a42a613d54de171b0b54f3649))
+
+
+### Build System
+
+* docs-kit v0.4.1 for the docs site ([#27](https://github.com/branes-ai/anatomy/issues/27)) ([7cb9b62](https://github.com/branes-ai/anatomy/commit/7cb9b621b6ee301e7dca3b01dd40a5e328e51af8))
+
 ## [0.5.0](https://github.com/branes-ai/anatomy/compare/v0.4.0...v0.5.0) (2026-10-31)
 
 
