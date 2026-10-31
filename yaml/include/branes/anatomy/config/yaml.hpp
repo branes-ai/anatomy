@@ -1,9 +1,13 @@
 #pragma once
-/// @file parse.hpp
-/// @brief YAML parsing and emitting helpers shared by the config loaders.
+/// @file yaml.hpp
+/// @brief YAML parsing and emitting helpers for config loaders: anatomy's and a mission's.
 ///
-/// Private to sdk/src/config (yaml-cpp stays an implementation detail of the
-/// loaders).
+/// The helpers every loader shares: a key path for each error, unknown keys
+/// rejected, numbers checked finite, and doubles emitted to 17 significant
+/// digits so a file round-trips. Anatomy's own loaders use them, and so does a
+/// mission's loader for its world file (racing-drone: the course; scout-drone:
+/// the field). They are a library of their own, branes::anatomy_yaml, so
+/// yaml-cpp stays out of the core's and the profiles' public headers.
 ///
 /// Parsing uses exceptions internally (yaml-cpp throws); every public entry
 /// point catches them with guarded() and returns a ConfigError, so the API
@@ -28,7 +32,7 @@
 #include <string>
 #include <string_view>
 
-namespace branes::anatomy::config::detail {
+namespace branes::anatomy::config::yaml {
 
 struct Fail {
     std::string key;
@@ -228,4 +232,4 @@ inline std::string finish(YAML::Emitter& out) {
     return std::string(out.c_str()) + "\n";
 }
 
-}  // namespace branes::anatomy::config::detail
+}  // namespace branes::anatomy::config::yaml

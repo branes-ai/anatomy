@@ -6,7 +6,7 @@
 # vehicle and scenario configs (config/), the vehicle's slot concepts, context
 # and nulls (slots/), the synthetic sensors (harness/), and the log dump
 # (log/). Its headers are under <branes/anatomy/mobility/...>; it compiles the
-# vehicle and scenario loaders (yaml-cpp).
+# vehicle and scenario loaders (yaml-cpp, through branes::anatomy_yaml).
 
 add_library(branes_anatomy_mobility STATIC
     src/config/scenario.cpp
@@ -16,9 +16,8 @@ add_library(branes::anatomy_mobility ALIAS branes_anatomy_mobility)
 
 target_include_directories(branes_anatomy_mobility PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
-# The loaders share the core's private YAML helpers (sdk/src/config/parse.hpp).
-target_include_directories(branes_anatomy_mobility PRIVATE ${PROJECT_SOURCE_DIR}/sdk/src)
 target_compile_features(branes_anatomy_mobility PUBLIC cxx_std_20)
-target_link_libraries(branes_anatomy_mobility PUBLIC branes::anatomy PRIVATE yaml-cpp::yaml-cpp)
+# The loaders use the YAML helpers (branes::anatomy_yaml), privately.
+target_link_libraries(branes_anatomy_mobility PUBLIC branes::anatomy PRIVATE branes::anatomy_yaml)
 anatomy_set_warnings(branes_anatomy_mobility)
 set_target_properties(branes_anatomy_mobility PROPERTIES FOLDER "SDK")
