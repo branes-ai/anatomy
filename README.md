@@ -59,6 +59,7 @@ Arrows point from a tier to the tier below it that it builds on. They show how t
 
 The framework moved here from racing-drone ([ADR 0008](https://github.com/branes-ai/racing-drone/blob/main/docs/adr/0008-anatomy-mission-framework.md); [plan](docs/plan/move-from-racing-drone/README.md)). It builds a core and the mobility profile ([ADR 0001](docs/adr/0001-core-profiles-multi-node.md)):
 - `branes::anatomy` (core): what every kind of mission needs. It holds time and geometry, the camera frame, the stack profile, slot construction, the baseline config, the replay log, and the harness;
+- `branes::anatomy_yaml`: the YAML helpers for config loaders, anatomy's and a mission's (its world file). Its header is `<branes/anatomy/config/yaml.hpp>`, and it is the only library whose headers include yaml-cpp;
 - `branes::anatomy_mobility`: what a roaming vehicle adds. It holds the IMU, estimate, reference, command and truth contracts, `MobilityProfile`, the vehicle and scenario configs, the vehicle's slots, and the log dump. Its headers are under `<branes/anatomy/mobility/...>`;
 - `branes::anatomy_glue`: the adapters from reflex components to the slots;
 - `branes::anatomy_mobility_sim`: the closed-loop simulator on the reflex dynamics.

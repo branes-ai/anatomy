@@ -45,6 +45,7 @@ endforeach()
 # (cmake/header_check.cmake; docs/plan/split-libraries).
 include(${PROJECT_SOURCE_DIR}/cmake/header_check.cmake)
 anatomy_header_check(NAME headers_core ROOT ${PROJECT_SOURCE_DIR}/sdk/include LIBS branes::anatomy)
+anatomy_header_check(NAME headers_yaml ROOT ${PROJECT_SOURCE_DIR}/yaml/include LIBS branes::anatomy_yaml)
 anatomy_header_check(NAME headers_mobility ROOT ${PROJECT_SOURCE_DIR}/mobility/include LIBS branes::anatomy_mobility)
 anatomy_header_check(NAME headers_glue ROOT ${PROJECT_SOURCE_DIR}/glue/include LIBS branes::anatomy_glue)
 anatomy_header_check(NAME headers_mobility_sim ROOT ${PROJECT_SOURCE_DIR}/sim/include

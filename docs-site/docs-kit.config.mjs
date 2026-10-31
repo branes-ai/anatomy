@@ -11,6 +11,6 @@ export default {
   api: {
     name: 'Anatomy C++ API',
     brief: 'branes::anatomy — the Branes.AI mission framework',
-    input: ['sdk/include', 'mobility/include', 'glue/include', 'sim/include'],
+    input: ['sdk/include', 'yaml/include', 'mobility/include', 'glue/include', 'sim/include'],
   },
 };

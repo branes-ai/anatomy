@@ -20,6 +20,7 @@ on:
       - 'mobility/include/**'
       - 'sim/include/**'
       - 'glue/include/**'
+      - 'yaml/include/**'
       - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:
 

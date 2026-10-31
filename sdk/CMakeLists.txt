@@ -17,7 +17,10 @@ add_library(branes::anatomy ALIAS branes_anatomy)
 target_include_directories(branes_anatomy PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(branes_anatomy PUBLIC cxx_std_20)
-# yaml-cpp stays an implementation detail of the loaders.
+# yaml-cpp stays an implementation detail of the loaders. The baseline loader
+# uses the YAML helpers' header (yaml/, branes::anatomy_yaml) privately; it can't
+# link that library, which is built on this one.
+target_include_directories(branes_anatomy PRIVATE ${PROJECT_SOURCE_DIR}/yaml/include)
 target_link_libraries(branes_anatomy PRIVATE yaml-cpp::yaml-cpp PUBLIC Threads::Threads)
 anatomy_set_warnings(branes_anatomy)
 set_target_properties(branes_anatomy PROPERTIES FOLDER "SDK")
