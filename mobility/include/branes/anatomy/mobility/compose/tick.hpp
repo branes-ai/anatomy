@@ -118,6 +118,12 @@ template <StackProfile P>
     return std::all_of(cs.begin(), cs.end(), [](log::Channel c) { return is_profile_input<P>(c); });
 }
 
+/// MobilityProfile::encode<T>'s type. Its address, and a profile's, are cast
+/// to it to be compared: MSVC can't resolve a template's specialization in ==
+/// without a target type.
+template <typename T>
+using EncodeFn = void (*)(const TickOutput<T>&, Timestamp, std::vector<Output>&);
+
 }  // namespace detail
 
 /// A profile of a roaming vehicle, for a stack in scalar type T:
@@ -134,7 +140,8 @@ concept MobileProfile = StackProfile<P> && std::same_as<typename P::template tru
                         std::ranges::equal(P::outputs, MobilityProfile::outputs) &&
                         detail::takes_all<P>(MobilityProfile::inputs) && requires {
                             requires(&P::decode_truth == &MobilityProfile::decode_truth);
-                            requires(&P::template encode<T> == &MobilityProfile::template encode<T>);
+                            requires(static_cast<detail::EncodeFn<T>>(&P::template encode<T>) ==
+                                     static_cast<detail::EncodeFn<T>>(&MobilityProfile::template encode<T>));
                         };
 static_assert(MobileProfile<MobilityProfile, double>);
 
