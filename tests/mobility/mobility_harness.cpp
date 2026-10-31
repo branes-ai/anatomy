@@ -1,6 +1,7 @@
 // The mobility profile's harness pieces: the log dump with a mission's own
 // channel, and the checks that a stack is a mobile one (MobileStack), which
-// the SITL and closed loops require.
+// the SITL and closed loops require: its profile is MobilityProfile, or adds
+// inputs to it without changing its truth, outputs or codecs (MobileProfile).
 
 #include <branes/anatomy/log/log.hpp>
 #include <branes/anatomy/mobility/compose/tick.hpp>
@@ -18,6 +19,7 @@
 #include <iterator>
 #include <optional>
 #include <random>
+#include <span>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -81,6 +83,59 @@ struct WrongProfileStack {
 static_assert(!RunnableStack<WrongProfileStack>);
 
 }  // namespace
+
+// Named, not anonymous: the address of an internal-linkage encode<T> that the
+// checks take but never call is an unused function to gcc.
+namespace mobile {
+
+/// A mission's own input channel, for the profiles below.
+constexpr log::Channel kRangeIn = static_cast<log::Channel>(10);
+
+/// MobilityProfile with one more input: a mobile profile.
+struct AddsInput : MobilityProfile {
+    static constexpr std::array<log::Channel, 3> inputs = {log::Channel::imu, log::Channel::camera, kRangeIn};
+};
+static_assert(StackProfile<AddsInput>);
+static_assert(MobileProfile<AddsInput, double>);
+static_assert(MobileProfile<AddsInput, float>);
+static_assert(MobileProfile<MobilityProfile, float>);
+
+/// One that drops the camera: the loops' camera frames would have nowhere to go.
+struct DropsCamera : MobilityProfile {
+    static constexpr std::array<log::Channel, 2> inputs = {log::Channel::imu, kRangeIn};
+};
+static_assert(StackProfile<DropsCamera>);
+static_assert(!MobileProfile<DropsCamera, double>);
+
+/// One that logs its outputs in another order.
+struct ReordersOutputs : MobilityProfile {
+    static constexpr std::array<log::Channel, 3> outputs = {
+        log::Channel::command, log::Channel::state, log::Channel::reference};
+};
+static_assert(StackProfile<ReordersOutputs>);
+static_assert(!MobileProfile<ReordersOutputs, double>);
+
+/// One that encodes the outputs its own way: the loops couldn't decode them.
+struct OwnEncode : MobilityProfile {
+    template <typename T>
+    static void encode(const TickOutput<T>&, Timestamp, std::vector<Output>&) {}
+};
+static_assert(StackProfile<OwnEncode>);
+static_assert(!MobileProfile<OwnEncode, double>);
+
+/// One that decodes the truth its own way.
+struct OwnTruthCodec : MobilityProfile {
+    [[nodiscard]] static std::optional<TruthState<double>> decode_truth(std::span<const std::byte>) {
+        return std::nullopt;
+    }
+};
+static_assert(StackProfile<OwnTruthCodec>);
+static_assert(!MobileProfile<OwnTruthCodec, double>);
+
+/// The watch post's profile shares nothing with MobilityProfile.
+static_assert(!MobileProfile<watch::WatchProfile, double>);
+
+}  // namespace mobile
 
 TEST_CASE("neutral: dump_records writes a mission's channel in its own format", "[neutral]") {
     const auto log_path = temp_path("log.brlog");
