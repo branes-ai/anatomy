@@ -1,7 +1,7 @@
 # The checks of anatomy's own sources (docs/plan/move-from-racing-drone).
 #
 # framework.names_no_mission: anatomy's code (comments aside) names nothing of
-# a mission: no racing namespace, include, or task type. It scans sdk/,
+# a mission: no racing namespace, include, or task type. It scans sdk/, yaml/,
 # mobility/, sim/, glue/, tests/ and cmake/, except this directory, which holds
 # the check, its fixture, and this registration, all of which name the tokens
 # on purpose.

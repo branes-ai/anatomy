@@ -1,6 +1,5 @@
+#include <branes/anatomy/config/yaml.hpp>
 #include <branes/anatomy/mobility/config/scenario.hpp>
-
-#include "config/parse.hpp"  // the core's private YAML helpers (sdk/src/config/)
 
 #include <array>
 #include <cassert>
@@ -11,7 +10,7 @@
 
 namespace branes::anatomy::config {
 
-using namespace detail;
+using namespace yaml;
 
 // ── Scenario ────────────────────────────────────────────────────────
 
