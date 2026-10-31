@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/branes-ai/anatomy/compare/v0.4.0...v0.5.0) (2026-10-31)
+
+
+### Features
+
+* derive a run's random streams in the core, for a mission's own ([#24](https://github.com/branes-ai/anatomy/issues/24)) ([66ab63e](https://github.com/branes-ai/anatomy/commit/66ab63ef01a4635edf3326682d5970d9695dd5d8))
+* export the YAML helpers for a mission's config loaders ([#23](https://github.com/branes-ai/anatomy/issues/23)) ([62b7dbf](https://github.com/branes-ai/anatomy/commit/62b7dbf049f1361779cb394b0fc3db4f9b2a5d20))
+
+
+### Continuous Integration
+
+* give each run on main a concurrency group of its own ([#21](https://github.com/branes-ai/anatomy/issues/21)) ([9f3a875](https://github.com/branes-ai/anatomy/commit/9f3a875313c0cbb8cafa7b0c0b610799748228c6))
+
 ## [0.4.0](https://github.com/branes-ai/anatomy/compare/v0.3.2...v0.4.0) (2026-10-30)
 
 
