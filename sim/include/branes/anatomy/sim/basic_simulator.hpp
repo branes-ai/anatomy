@@ -277,10 +277,9 @@ public:
     static constexpr std::uint64_t kDrawStream = 0x52414E44;  // "RAND"
     static constexpr std::uint64_t kCameraStream = 0x43414D;  // "CAM"
 
-    /// The seed of one of the run's random streams.
+    /// The seed of one of the run's random streams (util/splitmix64.hpp).
     [[nodiscard]] static constexpr std::uint64_t stream_seed(std::uint64_t seed, std::uint64_t stream) noexcept {
-        SplitMix64 mix(seed ^ (stream * 0x9E3779B97F4A7C15ull));
-        return mix.next();
+        return anatomy::stream_seed(seed, stream);
     }
 
     /// The mission's oracle sensor.

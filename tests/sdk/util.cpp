@@ -29,6 +29,22 @@ TEST_CASE("SplitMix64: reference output for seed 0", "[util]") {
     REQUIRE(rng.next() == 0xE220A8397B1DCDAFull);
 }
 
+TEST_CASE("stream_seed: the derivation the simulator's streams have always used", "[util]") {
+    // The simulator seeds its IMU, randomization and camera streams this way
+    // (sim/basic_simulator.hpp), so a log's seed means what it always meant.
+    for (const std::uint64_t seed : {0ull, 1ull, 1700ull, 20261024ull}) {
+        for (const std::uint64_t stream : {0x494D55ull, 0x52414E44ull, 0x43414Dull}) {
+            REQUIRE(stream_seed(seed, stream) == SplitMix64(seed ^ (stream * 0x9E3779B97F4A7C15ull)).next());
+        }
+    }
+    STATIC_REQUIRE(stream_seed(1700, 0x494D55) == stream_seed(1700, 0x494D55));
+}
+
+TEST_CASE("stream_seed: different streams and seeds give different seeds", "[util]") {
+    REQUIRE(stream_seed(1700, 1) != stream_seed(1700, 2));
+    REQUIRE(stream_seed(1700, 1) != stream_seed(1701, 1));
+}
+
 TEST_CASE("SplitMix64: same seed, same stream; uniform01 in [0, 1)", "[util]") {
     SplitMix64 a(20261024);
     SplitMix64 b(20261024);
