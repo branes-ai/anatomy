@@ -9,7 +9,9 @@
 /// to the same outputs (SYS-08, SW-03). A mobile mission's stack names
 /// MobilityProfile: it takes IMU samples and camera frames, reads the vehicle's
 /// own true state, and produces a state estimate, a reference and a command
-/// per tick.
+/// per tick. A mission whose stack takes an input of its own names a profile
+/// that extends MobilityProfile with it; the SITL and closed loops take either
+/// (MobileStack).
 
 #include <branes/anatomy/compose/profile.hpp>
 #include <branes/anatomy/log/log.hpp>
@@ -22,6 +24,7 @@
 #include <branes/anatomy/msg/time.hpp>
 #include <branes/anatomy/result.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <concepts>
@@ -107,8 +110,37 @@ struct MobilityProfile {
 };
 static_assert(StackProfile<MobilityProfile>);
 
-/// A stack of a roaming vehicle: a RunnableStack whose profile is MobilityProfile.
+namespace detail {
+
+/// True if every channel of `cs` is one of profile P's inputs.
+template <StackProfile P>
+[[nodiscard]] constexpr bool takes_all(std::span<const log::Channel> cs) noexcept {
+    return std::all_of(cs.begin(), cs.end(), [](log::Channel c) { return is_profile_input<P>(c); });
+}
+
+}  // namespace detail
+
+/// A profile of a roaming vehicle, for a stack in scalar type T:
+/// MobilityProfile, or one that adds inputs of its own to it (scout-drone:
+/// ScoutProfile, with the obstacles seen). It has MobilityProfile's truth and
+/// output types, its outputs in its order, and its truth and output codecs
+/// (the same functions, not ones of its own), and it takes the IMU and the
+/// camera among its inputs. So a loop that decodes the truth, the estimate
+/// and the command, and sends the stack the IMU and the camera, runs it as it
+/// runs a MobilityProfile stack.
+template <class P, typename T>
+concept MobileProfile = StackProfile<P> && std::same_as<typename P::template truth_type<T>, TruthState<T>> &&
+                        std::same_as<typename P::template output_type<T>, TickOutput<T>> &&
+                        std::ranges::equal(P::outputs, MobilityProfile::outputs) &&
+                        detail::takes_all<P>(MobilityProfile::inputs) && requires {
+                            requires(&P::decode_truth == &MobilityProfile::decode_truth);
+                            requires(&P::template encode<T> == &MobilityProfile::template encode<T>);
+                        };
+static_assert(MobileProfile<MobilityProfile, double>);
+
+/// A stack of a roaming vehicle: a RunnableStack whose profile is a
+/// MobileProfile in its scalar type.
 template <class S>
-concept MobileStack = RunnableStack<S> && std::same_as<typename S::profile, MobilityProfile>;
+concept MobileStack = RunnableStack<S> && MobileProfile<typename S::profile, typename S::scalar_type>;
 
 }  // namespace branes::anatomy
