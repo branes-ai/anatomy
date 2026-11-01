@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.2](https://github.com/branes-ai/anatomy/compare/v0.6.1...v0.6.2) (2026-11-01)
+
+
+### Build System
+
+* docs-kit v0.6.0 for the docs site ([#31](https://github.com/branes-ai/anatomy/issues/31)) ([20af284](https://github.com/branes-ai/anatomy/commit/20af28405161e1cec4586d5004747867b4288023))
+
+
+### Documentation
+
+* **adr:** add the third-party data rule to the license ADR ([#32](https://github.com/branes-ai/anatomy/issues/32)) ([acae074](https://github.com/branes-ai/anatomy/commit/acae0749f262c5ed1a335ddeac30f2bd40cb336c))
+
 ## [0.6.1](https://github.com/branes-ai/anatomy/compare/v0.6.0...v0.6.1) (2026-11-01)
 
 
