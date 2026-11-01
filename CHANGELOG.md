@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/branes-ai/anatomy/compare/v0.6.0...v0.6.1) (2026-11-01)
+
+
+### Documentation
+
+* record the license policy as ADRs 0002 and 0003 ([#29](https://github.com/branes-ai/anatomy/issues/29)) ([4790f76](https://github.com/branes-ai/anatomy/commit/4790f764041692c7507c7859d0818384d85d5f37))
+
 ## [0.6.0](https://github.com/branes-ai/anatomy/compare/v0.5.0...v0.6.0) (2026-10-31)
 
 
