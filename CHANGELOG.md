@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3](https://github.com/branes-ai/anatomy/compare/v0.6.2...v0.6.3) (2026-11-01)
+
+
+### Build System
+
+* **deps:** reflex v0.10.0, which brings the trace writer's scene ([#34](https://github.com/branes-ai/anatomy/issues/34)) ([8a40a09](https://github.com/branes-ai/anatomy/commit/8a40a09b30524209b111b742ac9eb0706b04f1fa))
+
 ## [0.6.2](https://github.com/branes-ai/anatomy/compare/v0.6.1...v0.6.2) (2026-11-01)
 
 
