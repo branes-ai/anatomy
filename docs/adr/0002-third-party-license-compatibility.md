@@ -31,5 +31,5 @@ No GPL, LGPL, AGPL, MPL or SSPL dependency is accepted. [ADR 0003](0003-no-gpl-c
 ## Consequences
 
 - This table answers a partner's license review: what anatomy links, and under which terms.
-- **Scope.** This covers what anatomy ships, the code that builds it and the tests. The docs site's toolchain is not part of it. Astro brings in sharp and libvips (LGPL-3.0) to process images, but they only build the documentation, in CI and on developers' machines.
+- **Scope.** This covers what anatomy ships, the code that builds it and the tests. The docs site's toolchain is not part of it. Astro brings in sharp (Apache-2.0) to process images, and sharp brings prebuilt libvips binaries, the `@img/sharp-libvips-*` packages (LGPL-3.0-or-later). They only build the documentation, in CI and on developers' machines.
 - **Current state:** anatomy's dependencies are those in the table. It contains no third-party code, so it has no `THIRD_PARTY_NOTICES.md` yet. No release artifact bundles the dependencies' license files.
