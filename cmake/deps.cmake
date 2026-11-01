@@ -46,14 +46,17 @@ FetchContent_MakeAvailable(yaml-cpp)
 # ── branes-ai/reflex — dynamics model, rate loop, mixer, filters (MIT) ──
 # The glue's controller (glue/) and the simulator's plant and simulated flight
 # controller (sim/). Pinned to a commit on reflex main, the same as
-# racing-drone's; bumps go via dedicated PRs, here first. Its tests and benches
-# are off because it is not the top-level project. It brings MTL5 5.20.0 with
-# it. SYSTEM, like yaml-cpp: reflex is built warning-clean under its own flags,
-# but a consumer's names can collide with its locals (MSVC C4459).
+# racing-drone's; bumps go via dedicated PRs, here first. The comment keeps the
+# form "main after reflex#N", which racing-drone's pin check matches. From
+# v0.10.0 it also defines branes::reflex_trace, the trace writer a mission
+# exports its replays with. Its tests and benches are off because it is not
+# the top-level project. It brings MTL5 5.20.0 with it. SYSTEM, like
+# yaml-cpp: reflex is built warning-clean under its own flags, but a
+# consumer's names can collide with its locals (MSVC C4459).
 FetchContent_Declare(
     reflex
     GIT_REPOSITORY https://github.com/branes-ai/reflex.git
-    GIT_TAG        33ad1bbea37cfe05f22286c2525d7a751da2b482  # main after reflex#33
+    GIT_TAG        8818265c4e8b37afdebf3abca851e21913c817d3  # main after reflex#81 (v0.10.0)
     SYSTEM
 )
 FetchContent_MakeAvailable(reflex)
