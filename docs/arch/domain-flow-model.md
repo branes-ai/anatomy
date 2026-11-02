@@ -108,7 +108,7 @@ operator kf_update
     P ← (I − K·H)·P                          # inout on P
 ```
 
-**A composite operator's body is a graph.** A mission's estimator is a composite whose leaves are fabric operations. The compiler can keep a composite whole, or open it to fuse and tile its leaves. The composites with a stable signature are what slots were: the units a mission names and a baseline chooses.
+**A composite operator's body is a graph.** A mission's estimator is a composite whose leaves are fabric operations. The compiler can keep a composite whole, or open it to fuse and tile its leaves. The composites with a stable signature are what slots were: the units a mission names and a baseline fills. A scoreboard baseline may change only what is inside the mission's composites, while a research baseline may change the whole graph between the mission's external ports ([ADR 0004](../adr/0004-domain-flow-composition.md), decision 6).
 
 ## 6. The dependence graph
 
@@ -196,5 +196,5 @@ The result is a **resource contract** for each region: the processing elements, 
 1. **ABI compatibility.** Is the memory level an attribute of the at-rest phase, or part of the phase? This depends on how the ABI must stay forward and backward compatible.
 2. **Conditional execution.** Mode switches, an estimator that falls back when its health degrades, gating a detection that fails a validation test: alternative regions selected by a trigger, or a data-dependent choice within one region?
 3. **What a notifier carries.** Only that something completed, or also which resources it releases, so the controller needs no further query?
-4. **The unit of comparison.** Is a baseline allowed to change composites, or only leaves? This decides how much of the graph a baseline may vary while its results stay comparable.
+4. **The unit of comparison.** Decided in [ADR 0004](../adr/0004-domain-flow-composition.md), decision 6. A scoreboard baseline may change any graph inside the mission's composites, but must keep the composites themselves, their ports and how they connect. A research baseline may change the whole graph between the mission's external ports, and its results are marked as research.
 5. **Transformations between faces.** When two faces are almost congruent, is a spatial transformation on the fabric a transition, or a small operator in the graph?
