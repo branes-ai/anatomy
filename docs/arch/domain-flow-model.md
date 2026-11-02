@@ -22,7 +22,7 @@ Today a mission's stack is a fixed pipeline of **slots** (racing-drone ADR 0001)
 | 4. Events | triggers, notifiers and the regions they fire | the mission and the baseline | no |
 | 5. Lowering | each domain's phases, layouts, schedules and placement; tiling; bufferization; the resource contract | the compiler and the runtime | yes |
 
-A baseline writes layers 2 to 4. It means the same algorithm on every target: only layer 5 differs between the CPU, the KPU and a TPU, so baselines stay comparable on any of them.
+A baseline writes layers 2 to 4. It names operators, the algorithms, and never a target's implementation of one. So a baseline is the same algorithm on every target: only layer 5 differs between the CPU, the KPU and a TPU, where the compiler picks each leaf operator's implementation for the target and lowers it. Baselines stay comparable on any target.
 
 ## 3. Domains
 
@@ -71,7 +71,7 @@ At each point of a lowered program, a domain is in exactly one of three phases:
 | **evict** / **restore** | resident ↔ at rest | spills a held domain to memory, or brings it back |
 | **relayout** | at rest → at rest | transposes, reblocks or reorders a domain in memory |
 
-**The default for an edge is drain, then stream in, with a relayout between them if needed.** Each operator has its own schedule and its own face shapes, and dependent operators rarely have congruent faces. Even a direct pipeline would need a transformation in space and time between them, and flat memory performs one for free. **Pipeline** is an optimization the compiler applies when two faces are congruent. **Park** is how state and stationary operands get their phase.
+**The default for a flow edge is drain, then stream in, with a relayout between them if needed.** Each operator has its own schedule and its own face shapes, and dependent operators rarely have congruent faces. Even a direct pipeline would need a transformation in space and time between them, and flat memory performs one for free. **Pipeline** is an optimization the compiler applies when two faces are congruent. **A carried edge** (section 6) keeps its state resident between firings, by park and resume, where the resources allow it. It is evicted to rest, and restored, only when the runtime spills it. Stationary operands are parked the same way.
 
 ### Prologues and epilogues
 
@@ -92,7 +92,7 @@ An elementwise operator applied to a subdomain as it streams in is a **prologue*
 - **its ports**, each a domain with a direction: **in**, **out**, or **inout**. An inout port updates in place, which the compiler sees as a write after a read of the same buffer;
 - **its computational domain**, whose faces are its ports;
 - **its state**, as domains (below);
-- **its implementations, per target:** a KPU Domain Flow Program, a TPU lowering, a CPU kernel. A leaf with no fabric implementation runs on the CPU.
+- **the targets it has implementations for:** a KPU Domain Flow Program, a TPU lowering, a CPU kernel. The library provides the implementations, and which one runs is the lowering's choice (layer 5), never the baseline's. A leaf with no fabric implementation runs on the CPU.
 
 **State is a declared domain.** It is carried from one firing to the next, so its buffer outlives a firing. It can stay on the fabric, it is what a checkpoint saves, and the compiler sees all of this:
 
@@ -157,7 +157,7 @@ Events carry no data. They attach to the same nodes as the data:
 | accumulate | IMU samples integrated between frames | an accumulator domain |
 | queue | detections processed in order | a ring, as deep as the rate ratio times the latency bound |
 
-Determinism comes from a fixed order within each region, and a fixed order between triggers that arrive at the same time. That keeps replay exact (anatomy's deterministic log).
+Determinism comes from a fixed order within each firing of a region, and a fixed order between triggers that arrive at the same time. A region's graph can have cycles, but every cycle crosses a carried edge (section 6), and a carried edge is a boundary between firings. Without its carried edges, a region's graph is acyclic, and its operators run in a fixed topological order of it. That keeps replay exact (anatomy's deterministic log).
 
 ```text
 region vision   trigger: frame (90 Hz)

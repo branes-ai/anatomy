@@ -28,12 +28,12 @@ The options considered:
 2. **Anatomy owns layers 1 to 4 of the model:** domain types, operator descriptors, the graph and the events. It must provide:
    - **domain types** with an index set, an element type per domain, a structure, and static or bounded symbolic shapes;
    - **operator descriptors** with ports (in, out, inout), declared state domains, and a computational domain where a leaf declares one;
-   - **a graph format in the baseline file**, which names each operator's implementation and parameters, the edges between them, and the triggers and regions;
+   - **a graph format in the baseline file**, which names each operator (the algorithm, such as `CascadedPid`) and its parameters, the edges between them, and the triggers and regions. It must not name a target's implementation of an operator: that choice is the lowering's;
    - **a generator** that checks the graph at configure time: port domains match, every input is connected, every cycle crosses a carried edge, and every operator belongs to a region. It must emit the CPU schedule as static C++, with no virtual dispatch, one build target per baseline, as today;
    - **an export of the checked graph** for the domain flow compiler.
-3. **Anatomy must not implement layer 5.** Phases, layouts, schedules, placement, tiling, bufferization and the resource contract belong to the compiler and the runtime, which live outside anatomy. A baseline may express a pin, and anatomy passes it on, but a pin must be a hint, never a requirement.
+3. **Anatomy must not implement layer 5.** Choosing a leaf operator's implementation for a target, phases, layouts, schedules, placement, tiling, bufferization and the resource contract belong to the compiler and the runtime, which live outside anatomy. A baseline may express a pin, and anatomy passes it on, but a pin must be a hint, never a requirement.
 4. **State must be declared.** An operator's state that persists between firings must be a declared state domain, not a hidden member. The CPU implementation may keep it in members, but the descriptor must declare it.
-5. **Determinism stays a core invariant.** Every region runs in a fixed topological order, and triggers that coincide have a fixed order, so a log replays to the same outputs on the CPU schedule, as it does today. Each edge can be logged.
+5. **Determinism stays a core invariant.** Carried edges are the boundaries between firings, so a region's graph without them is acyclic. Each firing runs its operators in a fixed topological order of that graph, and triggers that coincide have a fixed order, so a log replays to the same outputs on the CPU schedule, as it does today. Each edge can be logged.
 6. **The change is made with both clients in hand.** Each step below is accepted only when racing-drone's and scout-drone's outputs are byte-identical to the slot stack's, as ADR 0008 requires.
 
 ### Steps
