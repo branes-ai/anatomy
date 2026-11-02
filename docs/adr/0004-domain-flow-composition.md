@@ -1,6 +1,6 @@
 # ADR 0004: missions compose operators over domains in a dependence graph, not slots
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-11-01
 **Related:** [the domain flow computational model](../arch/domain-flow-model.md) (the model this ADR adopts); [racing-drone ADR 0001](https://github.com/branes-ai/racing-drone/blob/main/docs/adr/0001-baseline-composition-framework.md) (the slots, which this would supersede in part); [racing-drone ADR 0008](https://github.com/branes-ai/racing-drone/blob/main/docs/adr/0008-anatomy-mission-framework.md) (change the core only with a client in hand); [ADR 0001](0001-core-profiles-multi-node.md) (the core, the profiles and the multi-node layer)
 
@@ -63,4 +63,4 @@ The options considered:
 - **A mission's composites become its most consequential choice.** Changing one moves every scoreboard baseline, as changing a slot did.
 - **Every existing implementation survives** as a CPU implementation of an operator. `make_slot` and `from_context` remain how an operator is built from the mission's context.
 
-**Current state:** proposed. No step has been started.
+**Current state:** accepted on 2026-11-02. Step 1 is planned ([plan](../plan/flow-domains/README.md), [anatomy#40](https://github.com/branes-ai/anatomy/issues/40)).
