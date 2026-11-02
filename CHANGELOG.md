@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.5](https://github.com/branes-ai/anatomy/compare/v0.6.4...v0.6.5) (2026-11-02)
+
+
+### Documentation
+
+* **adr:** scoreboard baselines vary inside composites, research ones the graph ([#38](https://github.com/branes-ai/anatomy/issues/38)) ([a0f900c](https://github.com/branes-ai/anatomy/commit/a0f900c5032064644e1aa7fb6e00a3307b18eaf3))
+
 ## [0.6.4](https://github.com/branes-ai/anatomy/compare/v0.6.3...v0.6.4) (2026-11-02)
 
 
