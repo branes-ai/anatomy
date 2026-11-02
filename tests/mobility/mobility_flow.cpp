@@ -209,15 +209,16 @@ constexpr bool ports_are(std::index_sequence<I...>, const std::array<fl::directi
             ...);
 }
 
-constexpr fl::direction in = fl::direction::in;
-constexpr fl::direction out = fl::direction::out;
+constexpr fl::direction kIn = fl::direction::in;
+constexpr fl::direction kOut = fl::direction::out;
 
 }  // namespace
 
 TEMPLATE_TEST_CASE("Signatures: controller", "[flow]", float, double) {
     using T = TestType;
     using Messages = std::tuple<StateEstimate<T>, Reference<T>, ConflictSet<T>, ThrustRates<T>>;
-    STATIC_REQUIRE(ports_are<fl::controller_signature<T>, Messages>(std::make_index_sequence<4>{}, {in, in, in, out}));
+    STATIC_REQUIRE(
+        ports_are<fl::controller_signature<T>, Messages>(std::make_index_sequence<4>{}, {kIn, kIn, kIn, kOut}));
     STATIC_REQUIRE(Controller<ControllerProbe<T, StateEstimate<T>, Reference<T>, ConflictSet<T>, ThrustRates<T>>, T>);
 }
 
@@ -225,7 +226,7 @@ TEMPLATE_TEST_CASE("Signatures: safety filter", "[flow]", float, double) {
     using T = TestType;
     using Messages = std::tuple<StateEstimate<T>, ThrustRates<T>, ConflictSet<T>, Geofence<T>, ThrustRates<T>>;
     STATIC_REQUIRE(
-        ports_are<fl::safety_filter_signature<T>, Messages>(std::make_index_sequence<5>{}, {in, in, in, in, out}));
+        ports_are<fl::safety_filter_signature<T>, Messages>(std::make_index_sequence<5>{}, {kIn, kIn, kIn, kIn, kOut}));
     STATIC_REQUIRE(SafetyFilter<
                    SafetyFilterProbe<T, StateEstimate<T>, ThrustRates<T>, ConflictSet<T>, Geofence<T>, ThrustRates<T>>,
                    T>);
@@ -234,13 +235,13 @@ TEMPLATE_TEST_CASE("Signatures: safety filter", "[flow]", float, double) {
 TEMPLATE_TEST_CASE("Signatures: DAA tracker", "[flow]", float, double) {
     using T = TestType;
     using Messages = std::tuple<IntruderDetections<T>, StateEstimate<T>, ConflictSet<T>>;
-    STATIC_REQUIRE(ports_are<fl::daa_tracker_signature<T>, Messages>(std::make_index_sequence<3>{}, {in, in, out}));
+    STATIC_REQUIRE(ports_are<fl::daa_tracker_signature<T>, Messages>(std::make_index_sequence<3>{}, {kIn, kIn, kOut}));
     STATIC_REQUIRE(DaaTracker<DaaTrackerProbe<T, IntruderDetections<T>, StateEstimate<T>, ConflictSet<T>>, T>);
 }
 
 TEMPLATE_TEST_CASE("Signatures: FC bridge", "[flow]", float, double) {
     using T = TestType;
     using Messages = std::tuple<ThrustRates<T>, ImuSample<T>, FcStatus>;
-    STATIC_REQUIRE(ports_are<fl::fc_bridge_signature<T>, Messages>(std::make_index_sequence<3>{}, {in, out, out}));
+    STATIC_REQUIRE(ports_are<fl::fc_bridge_signature<T>, Messages>(std::make_index_sequence<3>{}, {kIn, kOut, kOut}));
     STATIC_REQUIRE(FcBridge<FcBridgeProbe<T, ThrustRates<T>, ImuSample<T>, FcStatus>, T>);
 }

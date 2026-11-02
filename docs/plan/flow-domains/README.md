@@ -154,4 +154,4 @@ The types carry no operations, only queries.
 | Step | PR | State |
 |---|---|---|
 | ADR 0004 accepted; this plan | [#41](https://github.com/branes-ai/anatomy/pull/41) | merged |
-| The vocabulary, the mobility domains and signatures, and the tests | | in review |
+| The vocabulary, the mobility domains and signatures, and the tests | [#43](https://github.com/branes-ai/anatomy/pull/43) | in review |

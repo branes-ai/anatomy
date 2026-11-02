@@ -114,14 +114,14 @@ struct is_index_space<index_space<Extents...>> : std::true_type {};
 template <std::size_t A, std::size_t B>
 [[nodiscard]] constexpr std::array<std::string_view, A + B> concat(const std::array<std::string_view, A>& a,
                                                                    const std::array<std::string_view, B>& b) noexcept {
-    std::array<std::string_view, A + B> out{};
+    std::array<std::string_view, A + B> joined{};
     for (std::size_t i = 0; i < A; ++i) {
-        out[i] = a[i];
+        joined[i] = a[i];
     }
     for (std::size_t i = 0; i < B; ++i) {
-        out[A + i] = b[i];
+        joined[A + i] = b[i];
     }
-    return out;
+    return joined;
 }
 }  // namespace detail
 
