@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.4](https://github.com/branes-ai/anatomy/compare/v0.6.3...v0.6.4) (2026-11-02)
+
+
+### Documentation
+
+* the domain flow computational model, and adr 0004 to adopt it ([#36](https://github.com/branes-ai/anatomy/issues/36)) ([c08dd04](https://github.com/branes-ai/anatomy/commit/c08dd04cd9f8864dcdacdd5193fb4580ec4376ba))
+
 ## [0.6.3](https://github.com/branes-ai/anatomy/compare/v0.6.2...v0.6.3) (2026-11-01)
 
 
