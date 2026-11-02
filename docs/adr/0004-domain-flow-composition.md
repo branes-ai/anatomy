@@ -34,14 +34,19 @@ The options considered:
 3. **Anatomy must not implement layer 5.** Choosing a leaf operator's implementation for a target, phases, layouts, schedules, placement, tiling, bufferization and the resource contract belong to the compiler and the runtime, which live outside anatomy. A baseline may express a pin, and anatomy passes it on, but a pin must be a hint, never a requirement.
 4. **State must be declared.** An operator's state that persists between firings must be a declared state domain, not a hidden member. The CPU implementation may keep it in members, but the descriptor must declare it.
 5. **Determinism stays a core invariant.** Carried edges are the boundaries between firings, so a region's graph without them is acyclic. Each firing runs its operators in a fixed topological order of that graph, and triggers that coincide have a fixed order, so a log replays to the same outputs on the CPU schedule, as it does today. Each edge can be logged.
-6. **The change is made with both clients in hand.** Each step below is accepted only when racing-drone's and scout-drone's outputs are byte-identical to the slot stack's, as ADR 0008 requires.
+6. **A baseline is either a scoreboard baseline or a research baseline, and its class limits how much of the graph it may change.** The baseline file must declare its class.
+   - **The mission fixes its interface:** its external ports, its scorer, and its **composites**. Each composite is a named operator with a fixed port signature, such as racing's estimator, planner and controller, connected to the others as the mission defines.
+   - **A scoreboard baseline** may supply any graph inside each composite, but must keep the composites, their ports and the connections between them. The generator must refuse a scoreboard baseline that adds, removes or rewires a composite, or changes a composite's ports. So a difference between two scoreboard baselines can be attributed to the composites whose bodies differ.
+   - **A research baseline** may supply any graph between the mission's external ports. It is scored by the same scorer on the same scenario suite, and its results are marked as research. The scoreboard ranks scoreboard baselines only.
+   - **A research baseline joins the scoreboard** by fitting its graph into the mission's composites. Alternatively, the mission can change its composites. That is a change to the mission interface, which every scoreboard baseline then follows.
+7. **The change is made with both clients in hand.** Each step below is accepted only when racing-drone's and scout-drone's outputs are byte-identical to the slot stack's, as ADR 0008 requires.
 
 ### Steps
 
 | Step | Repo | What |
 |---|---|---|
 | 1 | anatomy | Domain types and operator descriptors, alongside the slot concepts, with no change in behavior |
-| 2 | anatomy, scout-drone | The graph format and the generator. scout-drone's `s0-gt-pid` re-expressed as a graph, with logs byte-identical to the slot stack's on every scenario and the batch |
+| 2 | anatomy, scout-drone | The graph format, the generator, and the two baseline classes, with the scoreboard check of decision 6. scout-drone's `s0-gt-pid` re-expressed as a graph, with logs byte-identical to the slot stack's on every scenario and the batch |
 | 3 | racing-drone | B0 re-expressed as a graph, checked the same way |
 | 4 | anatomy | The graph export for the domain flow compiler, with a first leaf operator lowered onto the fabric |
 | 5 | all | The slots retired: the hand-written `Stack` classes removed, racing-drone ADR 0001 superseded in part, and the docs moved to the new vocabulary |
@@ -54,7 +59,8 @@ The options considered:
 - **SYS-02 is enforced by the build.** Truth is an external port that only the SITL interface has, so a flight graph that reads it fails to build. `TruthConsumer` goes away.
 - **The multi-node layer (ADR 0001, decision 4) gets its model.** An edge between nodes is a message in the inter-node envelope.
 - **The cost is a generator that becomes a small compiler:** it parses graphs, checks domains and cycles, and orders regions. The invariants of the hand-written stacks (a valid field, ticks in order) move into the generated code or into the mission interface's contract.
-- **The comparability ADR 0001 secured by fixing the slots** now depends on the mission interface and the scorer staying fixed while the graph varies. How much of the graph a baseline may change is an open question of the model (its section 11), and must be answered before step 2.
+- **Comparability now rests on the mission interface.** ADR 0001 secured it by fixing the slots. Now the mission fixes its external ports, its scorer and its composites. Scoreboard baselines vary only inside the composites, so their differences can still be attributed. Research baselines vary the whole graph, and their scores are comparable but can't be attributed to one composite (decision 6).
+- **A mission's composites become its most consequential choice.** Changing one moves every scoreboard baseline, as changing a slot did.
 - **Every existing implementation survives** as a CPU implementation of an operator. `make_slot` and `from_context` remain how an operator is built from the mission's context.
 
 **Current state:** proposed. No step has been started.
