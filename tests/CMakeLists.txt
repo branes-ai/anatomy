@@ -71,6 +71,7 @@ set_tests_properties(compile_fail.time_base.narrow_wide PROPERTIES
 set(flow_compile_fail
     "d1_dim|D1: every extent has a size or a bound of at least 1"
     "d1_bounded|D1: every extent has a size or a bound of at least 1"
+    "d1_index_space|D1: every extent has a size or a bound of at least 1"
     "d2_rank|D2: a structure other than dense needs a square domain of rank 2"
     "d2_square|D2: a structure other than dense needs a square domain of rank 2"
     "d3_element|D3: the element type is an element type"

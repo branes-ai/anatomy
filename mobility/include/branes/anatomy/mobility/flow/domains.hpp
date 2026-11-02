@@ -4,9 +4,11 @@
 /// docs/adr/0004, step 1; docs/plan/flow-domains).
 ///
 /// One domain_of per message struct in mobility/msg/, field by field, in
-/// declaration order, with the struct's member names. A struct is a record;
-/// one that is a count and a fixed array (Reference, IntruderDetections) is a
-/// bounded vector of its element's record, whose count is the struct's.
+/// declaration order, with the struct's member names. A struct is a record.
+/// A count and the fixed array it counts are one bounded vector of the
+/// element's record, since a bounded extent carries its count in the data:
+/// the whole struct, when that is all it holds (Reference, IntruderDetections),
+/// or one field (ConflictSet's `conflicts`, which covers `count`).
 ///
 /// The struct is a layout, and the domain says what the data is: the
 /// estimate's covariance is a symmetric 15 × 15 matrix, whose stored elements

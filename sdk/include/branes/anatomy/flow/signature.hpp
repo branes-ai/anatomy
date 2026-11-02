@@ -16,7 +16,8 @@
 ///   signature_of<Op>            : Op::signature, or a specialization
 ///
 /// Invariants (static_asserts, checked when a signature is instantiated,
-/// which instantiates its ports, states and their domains, so D1–R1 hold too):
+/// which instantiates its ports, states, index space and their domains, so
+/// D1–R1 hold too):
 ///   S1: the port and state names are non-empty and distinct, across ports
 ///       and state together, and each port and state holds a domain or a record
 ///   S2: a signature has at least one out or inout port, or a state domain
@@ -42,6 +43,7 @@ namespace detail {
 struct port_tag {};
 struct state_tag {};
 struct signature_tag {};
+struct index_space_tag {};
 }  // namespace detail
 
 enum class direction : std::uint8_t { in, out, inout };
@@ -70,7 +72,7 @@ inline constexpr bool is_state_v = std::is_base_of_v<detail::state_tag, S>;
 
 /// A leaf operator's computational domain.
 template <class... Extents>
-struct index_space {
+struct index_space : detail::index_space_tag {
     static_assert((is_extent_v<Extents> && ...), "D1: an index space's extents are dim or bounded");
     static constexpr std::size_t rank = sizeof...(Extents);
 };
@@ -106,10 +108,10 @@ struct is_states : std::false_type {};
 template <class... S>
 struct is_states<states<S...>> : std::true_type {};
 
+// is_base_of instantiates an index_space, so a signature checks its extents (D1).
 template <class T>
-struct is_index_space : std::is_same<T, no_index_space> {};
-template <class... Extents>
-struct is_index_space<index_space<Extents...>> : std::true_type {};
+struct is_index_space : std::bool_constant<std::is_same_v<T, no_index_space> || std::is_base_of_v<index_space_tag, T>> {
+};
 
 template <std::size_t A, std::size_t B>
 [[nodiscard]] constexpr std::array<std::string_view, A + B> concat(const std::array<std::string_view, A>& a,
