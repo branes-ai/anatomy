@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.6](https://github.com/branes-ai/anatomy/compare/v0.6.5...v0.6.6) (2026-11-02)
+
+
+### Documentation
+
+* **adr:** accept adr 0004, and plan its step 1 ([#41](https://github.com/branes-ai/anatomy/issues/41)) ([c41b32a](https://github.com/branes-ai/anatomy/commit/c41b32a2a04ccc360f72457f0e572301ae18aff0))
+
 ## [0.6.5](https://github.com/branes-ai/anatomy/compare/v0.6.4...v0.6.5) (2026-11-02)
 
 
