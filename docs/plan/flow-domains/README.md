@@ -56,9 +56,9 @@ template <fixed_string Name, class D>                struct state;
 template <class... Extents>                          struct index_space;
 struct no_index_space;
 
-template <class Ports, class States = states<>, class Space = no_index_space> struct signature;
 template <class... P> struct ports;
 template <class... S> struct states;
+template <class Ports, class States = states<>, class Space = no_index_space> struct signature;
 
 // An operator's signature, without touching the operator's type: either
 // Op::signature, or a specialization of signature_of.
@@ -150,5 +150,5 @@ The types carry no operations, only queries.
 
 | Step | PR | State |
 |---|---|---|
-| ADR 0004 accepted; this plan | | open |
+| ADR 0004 accepted; this plan | [#41](https://github.com/branes-ai/anatomy/pull/41) | open |
 | The vocabulary, the mobility domains and signatures, and the tests | | not started |
