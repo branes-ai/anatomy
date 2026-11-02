@@ -174,7 +174,7 @@ Step 2 is four PRs. Each is accepted on its own criteria, and the step on all of
 
 | Step | PR | State |
 |---|---|---|
-| This plan | | open |
+| This plan | [#48](https://github.com/branes-ai/anatomy/pull/48) | open |
 | 2a: the graph description | | not started |
 | 2b: the generator | | not started |
 | 2c: scout-drone's graphs | | not started |
