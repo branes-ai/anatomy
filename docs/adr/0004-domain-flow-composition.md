@@ -63,4 +63,4 @@ The options considered:
 - **A mission's composites become its most consequential choice.** Changing one moves every scoreboard baseline, as changing a slot did.
 - **Every existing implementation survives** as a CPU implementation of an operator. `make_slot` and `from_context` remain how an operator is built from the mission's context.
 
-**Current state:** accepted on 2026-11-02. Step 1 is planned ([plan](../plan/flow-domains/README.md), [anatomy#40](https://github.com/branes-ai/anatomy/issues/40)).
+**Current state:** accepted on 2026-11-02. Step 1 is in review ([plan](../plan/flow-domains/README.md), [anatomy#40](https://github.com/branes-ai/anatomy/issues/40)): the domain and signature types in the core (`flow/`), and the mobility messages' domains and the neutral composites' signatures (`mobility/flow/`).

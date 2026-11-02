@@ -64,6 +64,34 @@ add_test(NAME compile_fail.time_base.narrow_wide
 set_tests_properties(compile_fail.time_base.narrow_wide PROPERTIES
     PASS_REGULAR_EXPRESSION "Wide has fewer significand digits than T")
 
+# The domain flow vocabulary's invariants (flow/domain.hpp, flow/signature.hpp;
+# docs/plan/flow-domains): one file per violation, each expecting the message
+# of the invariant it breaks. The tests build in the one build tree, so they
+# hold a lock and run one at a time, the time base's test among them.
+set(flow_compile_fail
+    "d1_dim|D1: every extent has a size or a bound of at least 1"
+    "d1_bounded|D1: every extent has a size or a bound of at least 1"
+    "d2_rank|D2: a structure other than dense needs a square domain of rank 2"
+    "d2_square|D2: a structure other than dense needs a square domain of rank 2"
+    "d3_element|D3: the element type is an element type"
+    "r1_empty|R1: a record has at least one field"
+    "r1_duplicate|R1: a record's field names are non-empty and distinct"
+    "s1_duplicate|S1: the port and state names are non-empty and distinct"
+    "s2_no_output|S2: a signature has at least one out or inout port, or a state domain")
+foreach(entry IN LISTS flow_compile_fail)
+    string(REPLACE "|" ";" entry "${entry}")
+    list(GET entry 0 case)
+    list(GET entry 1 message)
+    add_library(flow_${case} OBJECT EXCLUDE_FROM_ALL ${CMAKE_CURRENT_SOURCE_DIR}/compile_fail/flow_${case}.cpp)
+    target_include_directories(flow_${case} PRIVATE ${PROJECT_SOURCE_DIR}/sdk/include)
+    target_compile_features(flow_${case} PRIVATE cxx_std_20)
+    add_test(NAME compile_fail.flow.${case}
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target flow_${case} --config $<CONFIG>)
+    set_tests_properties(compile_fail.flow.${case} PROPERTIES
+        PASS_REGULAR_EXPRESSION "${message}" RESOURCE_LOCK anatomy_build_tree)
+endforeach()
+set_tests_properties(compile_fail.time_base.narrow_wide PROPERTIES RESOURCE_LOCK anatomy_build_tree)
+
 # ── Anatomy names no mission ───────────────────────────────────────────────
 # The check, its fixture, and their registration name the mission tokens they
 # look for, so they live in tests/tools/, which the check does not scan.

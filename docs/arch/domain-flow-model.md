@@ -46,6 +46,7 @@ domain Image = tensor<u8>[480, 640, 1]
 - **Structure** (dense, symmetric, triangular, banded, block, sparse) is part of the type. It changes the computational domain and the storage, and the compiler can exploit it only if the type says so.
 - **The element type is per domain.** A covariance can be `f32` while the IMU path is `posit<16,1>`, so a precision sweep is per edge rather than one `T` for a whole stack.
 - **A subdomain** is a tile of a domain, of either kind (section 7).
+- **A record** is a list of named fields, each a domain or a record. A message is often a bundle of domains: a state estimate is a timestamp, 3-vectors, a quaternion and a symmetric covariance. A record is also an element type, so a bounded vector of records is a domain (the samples of a reference trajectory). A record's layout is not part of it: the compiler may store its fields apart or together (section 9).
 
 ## 4. Domain phases
 
