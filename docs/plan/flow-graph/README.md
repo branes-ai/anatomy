@@ -15,7 +15,9 @@ This is step 2 of [ADR 0004](../../adr/0004-domain-flow-composition.md). It adds
 - **a generator,** which checks a baseline's graph against the mission interface and emits the stack as static C++, with no virtual dispatch, one build target per baseline, as today;
 - **the two baseline classes,** with the scoreboard check of ADR 0004, decision 6.
 
-**scout-drone is the first client.** Its `s0-gt-pid` and `null` baselines are re-expressed as graphs and built beside today's slot stacks. The step is accepted only when the graph builds' logs match the slot builds' on every scenario and the batch (ADR 0004, decision 7).
+**scout-drone is the first client.** Its `s0-gt-pid` and `null` baselines are re-expressed as graphs and built beside today's slot stacks. ADR 0004, decision 7, accepts a step only on both clients' outputs:
+- **scout-drone:** the graph builds' logs match the slot builds' on every scenario and the batch;
+- **racing-drone:** its slot baselines, built against the anatomy that contains step 2, write logs byte-identical to its main's. racing-drone gains no graph until step 3, so step 2 must leave it unchanged.
 
 **What doesn't change:**
 - the slot concepts, the `Stack` classes, `composition_generate()` and the slot baselines' targets, which stay until step 5;
@@ -97,7 +99,11 @@ parameters: { ... }
 
 ### Operators and bindings
 
-- **An operator** is a C++ class registered under a name with its header and type, as `composition_register_impl()` does today: `flow_register_operator(<registry> <Name> COMPOSITE <c> HEADER <h> TYPE <t>)`. A registered operator fills one composite, so a single-operator body binds its ports by name to the composite's.
+- **An operator** is a C++ class registered under a name with its header and type, as `composition_register_impl()` does today. It is registered in one of two ways:
+  - `flow_register_operator(<registry> <Name> HEADER <h> TYPE <t> COMPOSITE <c>)`: the operator fills composite `c`, and takes its signature and binding. A single-operator body binds its ports by name to the composite's.
+  - `flow_register_operator(<registry> <Name> HEADER <h> TYPE <t> SIGNATURE <s> BINDING <b>)`: an operator of its own, with its own signature (`signature_of`, step 1) and binding. It can be placed in a research graph, or in a scoreboard body that has more than one operator.
+
+  A research graph may use operators of either kind. An operator that fills a composite keeps that composite's signature and binding wherever it is placed.
 - **A binding** is the CPU calling convention of a composite's operators. It is a C++ struct with one static function per handler, for example `EstimatorBinding::frame(est, f)` calls `est.process_frame(f)`. Every implementation of a slot concept has the same methods, so a binding is written once per composite, from its slot concept. The slot concepts survive as calling conventions until step 5.
 - **State.** A binding declares which of its handlers read and which update the operator's state (ADR 0004, decision 4). A composite declares no state (step 1); an operator does here, through its binding, so the generator can check that a read before an update is declared in that order.
 
@@ -116,7 +122,7 @@ The generator checks G1–G3 and G5–G9 and refuses a graph that breaks any of 
 | Id | Invariant |
 |---|---|
 | G1 | names are non-empty, `[a-z_][a-z0-9_]*`, and distinct per kind (composites, operators, regions, ports) |
-| G2 | every operator is registered, fills the composite it is placed in, and its binding has the handler named |
+| G2 | every operator is registered; one placed as a composite's single-operator body fills that composite; and its binding has every handler named |
 | G3 | every in port of every handler has exactly one source, and every source exists; every external out port has one producer |
 | G4 | every edge joins two ports of the same domain (`port_t` equality); a projection `x.f` is `field_t` of `x`'s record |
 | G5 | within a region, the handlers' flow edges are acyclic, and the declared order is a topological order of them; a read of state before an update in one region is declared in that order |
@@ -134,12 +140,12 @@ Step 2 is four PRs. Each is accepted on its own criteria, and the step on all of
 2. The baseline loader accepts `class:` and `graph:`, and every existing baseline file still loads, unchanged.
 3. The canonical form and the graph hash, with a round-trip test.
 4. A test for each invariant G1–G9: a file that breaks it, and the message expected.
-5. `domain_of<CameraFrame>`. The image is a run-time sized buffer with no bound in the data, so in step 2 the frame is a scalar of an opaque element type. Bounded image extents, bound from the vehicle file, come with the first operator that reads pixels.
+5. `domain_of<CameraFrame>`. The image is a run-time-sized buffer with no bound in the data, so in step 2 the frame is a scalar of an opaque element type. Bounded image extents, bound from the vehicle file, come with the first operator that reads pixels.
 
 **2b, anatomy: the generator.**
 1. `anatomy_flowgen` and `flow_add_baseline()` (cmake/flow.cmake), which generates the header and its targets, in the way `composition_generate()` does now.
 2. The neutral composites' bindings (`mobility/flow/bindings.hpp`).
-3. A test mission in `tests/` built end to end: scoreboard and research baselines, the generated stack driven by the harness, and its outputs checked.
+3. A test mission in `tests/` built end to end, with its outputs checked as the harness drives the generated stack. Its baselines cover a scoreboard baseline of single-operator bodies, a scoreboard body of several operators, and a research baseline that uses an operator of its own (`SIGNATURE`, `BINDING`).
 4. A compile-fail test for G4.
 5. No existing target changes, and every existing test passes.
 
@@ -148,6 +154,9 @@ Step 2 is four PRs. Each is accepted on its own criteria, and the step on all of
 2. `s0-gt-pid` and `null` gain `class: scoreboard` and `graph:`, and build `sitl_<name>_graph`, `replay_<name>_graph` and `sitl_batch_<name>_graph` beside the slot targets.
 3. **Equality with the slot stack,** on every scenario in `scenarios/` and the batch: the logs of the slot and graph builds have byte-identical records, and headers equal in every field except `composition_hash`. That is the slot hash in one, and the graph hash in the other. A comparison tool in anatomy (`log_compare --except composition_hash`) checks it in a gate test.
 4. The determinism gate passes for the graph build as it does for the slot build.
+
+**racing-drone: unchanged.**
+1. In a racing-drone branch that moves its anatomy pin to the release with 2a and 2b, every baseline builds and passes its gates. Its SITL logs on its scenarios are byte-identical to its main's. The branch is a check, and isn't merged unless asked: racing-drone's pin moves in its own PR (ADR 0008).
 
 **2d, docs.**
 1. This plan; ADR 0004's current state; the model's §10, on what changes in today's code; and scout-drone's docs on the mission interface.
