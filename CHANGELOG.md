@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/branes-ai/anatomy/compare/v0.6.6...v0.7.0) (2026-11-02)
+
+
+### Features
+
+* **flow:** domain types and operator signatures ([#43](https://github.com/branes-ai/anatomy/issues/43)) ([a85b77e](https://github.com/branes-ai/anatomy/commit/a85b77ed012b406d9c194f95b5998e05ad8feeeb)), closes [#40](https://github.com/branes-ai/anatomy/issues/40)
+
 ## [0.6.6](https://github.com/branes-ai/anatomy/compare/v0.6.5...v0.6.6) (2026-11-02)
 
 
