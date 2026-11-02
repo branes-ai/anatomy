@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/branes-ai/anatomy/compare/v0.7.0...v0.7.1) (2026-11-02)
+
+
+### Documentation
+
+* **adr:** mark adr 0004 step 1 complete ([#45](https://github.com/branes-ai/anatomy/issues/45)) ([ab316bd](https://github.com/branes-ai/anatomy/commit/ab316bdd929b946138487eebd4969c1e6b2f0fca))
+
 ## [0.7.0](https://github.com/branes-ai/anatomy/compare/v0.6.6...v0.7.0) (2026-11-02)
 
 
