@@ -28,11 +28,23 @@ namespace branes::anatomy::config {
 ///
 /// Invariants: name matches [a-z0-9-]+; composition names exactly the
 /// mission's slots, each with an implementation name [A-Za-z0-9_]+;
-/// parameters are scalar values.
+/// parameters are scalar values; baseline_class is empty, scoreboard or
+/// research, and is empty exactly when bodies and graph both are; a
+/// scoreboard baseline has bodies, each composite [a-z_][a-z0-9_]* and each
+/// body [A-Za-z0-9_]+, and no graph; a research baseline has a graph
+/// [A-Za-z0-9_]+, and no bodies.
+///
+/// A baseline may give its stack in both forms: the slots' `composition:`,
+/// and the domain flow's `class:` and `graph:` (anatomy docs/adr/0004, step 2).
+/// The graph itself is C++ (flow/builder.hpp): the file names what fills it,
+/// and flow::check_baseline() checks the names against the graph built.
 struct BaselineConfig {
     std::string name;
     std::map<std::string, std::string> composition;  ///< slot → implementation
     std::map<std::string, std::string> parameters;   ///< key → scalar value
+    std::string baseline_class;                      ///< `class:`; empty if absent
+    std::map<std::string, std::string> bodies;       ///< a scoreboard `graph:`: composite → body
+    std::string graph;                               ///< a research `graph:`: the graph's name
 
     friend bool operator==(const BaselineConfig&, const BaselineConfig&) = default;
 };
