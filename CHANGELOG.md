@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.3](https://github.com/branes-ai/anatomy/compare/v0.9.2...v0.9.3) (2026-11-03)
+
+
+### Documentation
+
+* add the baseline file's reference and a design guide ([#60](https://github.com/branes-ai/anatomy/issues/60)) ([e69ea6e](https://github.com/branes-ai/anatomy/commit/e69ea6e832ff20f46aa92ffeac641ff6f67dec36))
+
 ## [0.9.2](https://github.com/branes-ai/anatomy/compare/v0.9.1...v0.9.2) (2026-11-03)
 
 
