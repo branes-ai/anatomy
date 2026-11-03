@@ -618,7 +618,7 @@ void on(body<B>& b, F f) {
     using in_domains = typename detail::port_domains<sig, typename h::in>::type;
     using out_domains = typename detail::port_domains<sig, typename h::out>::type;
     using expected = decltype(detail::values_of<out_domains>(std::span<const Ref>{}));
-    const auto call = [f = std::move(f)](scope& s, const time_of* t, std::span<const Ref> in) {
+    const auto call = [f = std::move(f)](scope& s, [[maybe_unused]] const time_of* t, std::span<const Ref> in) {
         auto args = detail::values_of<in_domains>(in);
         if constexpr (h::timed) {
             return std::apply([&](const auto&... v) { return f(s, *t, v...); }, args);
