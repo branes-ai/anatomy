@@ -43,10 +43,14 @@ int main(int argc, char** argv) {
         return usage("usage: --a <a.brlog> --b <b.brlog> [--except <field>[,<field>...]]");
     }
     const std::string except_list = args->value("except").value_or("");
+    // Every field, empty ones too, which compare() refuses: "a,,b" and "a," aren't lists of fields.
     std::vector<std::string_view> except;
-    for (std::size_t at = 0; at < except_list.size();) {
+    for (std::size_t at = 0; !except_list.empty();) {
         const std::size_t end = std::min(except_list.find(',', at), except_list.size());
         except.push_back(std::string_view(except_list).substr(at, end - at));
+        if (end == except_list.size()) {
+            break;
+        }
         at = end + 1;
     }
 

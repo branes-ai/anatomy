@@ -57,6 +57,9 @@ public:
         rec.channel = r.u16();
         const std::uint32_t size = r.u32();
         rec.t = r.i64();
+        if (size > kMaxPayload) {
+            return LogError{path_.string(), "corrupt record size"};
+        }
         rec.payload.resize(size);
         in_.read(reinterpret_cast<char*>(rec.payload.data()), static_cast<std::streamsize>(size));
         if (static_cast<std::size_t>(in_.gcount()) != size) {

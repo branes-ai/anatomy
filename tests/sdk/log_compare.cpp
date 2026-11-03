@@ -188,6 +188,24 @@ TEST_CASE("log compare: an unreadable log and an unknown field are errors", "[lo
     REQUIRE_FALSE(truncated);
     CHECK(truncated.error().path == b.string());
     CHECK(truncated.error().message == "truncated record payload");
+
+    // b: a's bytes, its last record's size field corrupt (u32 at 2 bytes into
+    // the record's 14-byte header, before its 2-byte payload): refused before
+    // its payload is allocated.
+    {
+        std::ifstream in(a, std::ios::binary);
+        std::vector<char> bytes{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+        const std::size_t size_at = bytes.size() - 2 - 14 + 2;
+        for (std::size_t i = 0; i < 4; ++i) {
+            bytes[size_at + i] = static_cast<char>(0xff);
+        }
+        std::ofstream out(b, std::ios::binary);
+        out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    }
+    const auto corrupt = compare(a, b, {});
+    REQUIRE_FALSE(corrupt);
+    CHECK(corrupt.error().path == b.string());
+    CHECK(corrupt.error().message == "corrupt record size");
     cleanup(a);
     cleanup(b);
 }

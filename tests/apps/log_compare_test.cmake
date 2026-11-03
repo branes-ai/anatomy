@@ -31,6 +31,7 @@ expect(0 "are equal, 2 records, except composition_hash"
 expect(1 "record 1 (channel 17 at t=10 ns) has another payload"
     --a ${a} --b ${WORK_DIR}/payload.brlog --except composition_hash)
 expect(2 "'hash' is not a header field" --a ${a} --b ${a} --except world_hash,hash)
+expect(2 "'' is not a header field" --a ${a} --b ${a} --except composition_hash,)
 expect(2 "cannot open the log file" --a ${a} --b ${WORK_DIR}/none.brlog)
 expect(2 "usage: --a" --a ${a})
 expect(2 "option --verbose is not accepted here" --a ${a} --b ${a} --verbose x)
