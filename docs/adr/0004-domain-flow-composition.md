@@ -28,8 +28,9 @@ The options considered:
 2. **Anatomy owns layers 1 to 4 of the model:** domain types, operator descriptors, the graph and the events. It must provide:
    - **domain types** with an index set, an element type per domain, a structure, and static or bounded symbolic shapes;
    - **operator descriptors** with ports (in, out, inout), declared state domains, and a computational domain where a leaf declares one;
-   - **a graph format in the baseline file**, which names each operator (the algorithm, such as `CascadedPid`) and its parameters, the edges between them, and the triggers and regions. It must not name a target's implementation of an operator: that choice is the lowering's;
-   - **a generator** that checks the graph at configure time: port domains match, every input is connected, every cycle crosses a carried edge, and every operator belongs to a region. It must emit the CPU schedule as static C++, with no virtual dispatch, one build target per baseline, as today;
+   - **the graph, described in C++ with a checking builder.** It names each operator (the algorithm, such as `CascadedPid`), the edges between them, and the triggers and regions. It must not name a target's implementation of an operator: that choice is the lowering's. The mission describes its external ports, its composites and its regions; a baseline file names what fills them, and the operators' parameters;
+   - **the checks, before the stack runs:** port domains match, every input is connected, every cycle crosses a carried edge, and every operator belongs to a region. What the types know must be checked by the compiler, and the rest when the graph is built, which reports the invariant broken rather than throwing;
+   - **a CPU stack built from the checked graph,** which fires its operators in the checked order, with no virtual dispatch, one build target per baseline, as today;
    - **an export of the checked graph** for the domain flow compiler.
 3. **Anatomy must not implement layer 5.** Choosing a leaf operator's implementation for a target, phases, layouts, schedules, placement, tiling, bufferization and the resource contract belong to the compiler and the runtime, which live outside anatomy. A baseline may express a pin, and anatomy passes it on, but a pin must be a hint, never a requirement.
 4. **State must be declared.** An operator's state that persists between firings must be a declared state domain, not a hidden member. The CPU implementation may keep it in members, but the descriptor must declare it.
@@ -46,21 +47,23 @@ The options considered:
 | Step | Repo | What |
 |---|---|---|
 | 1 | anatomy | Domain types and operator descriptors, alongside the slot concepts, with no change in behavior |
-| 2 | anatomy, scout-drone | The graph format, the generator, and the two baseline classes, with the scoreboard check of decision 6. scout-drone's `s0-gt-pid` re-expressed as a graph, with logs byte-identical to the slot stack's on every scenario and the batch |
+| 2 | anatomy, scout-drone | The graph builder, the CPU stack, and the two baseline classes, with the scoreboard check of decision 6. scout-drone's `s0-gt-pid` re-expressed as a graph, with logs byte-identical to the slot stack's on every scenario and the batch |
 | 3 | racing-drone | B0 re-expressed as a graph, checked the same way |
 | 4 | anatomy | The graph export for the domain flow compiler, with a first leaf operator lowered onto the fabric |
 | 5 | all | The slots retired: the hand-written `Stack` classes removed, racing-drone ADR 0001 superseded in part, and the docs moved to the new vocabulary |
 
 ## Consequences
 
-- **The topology becomes data.** A new stage, such as a detector, a map or a fusion step, is a change to the graph plus an operator, not a new `Stack` class.
+- **The topology becomes a checked value.** A new stage, such as a detector, a map or a fusion step, is a change to the graph plus an operator, not a new `Stack` class.
 - **One baseline runs on every target.** The baseline is the same algorithm on the CPU, the KPU and a TPU, and only the lowering differs, so results stay comparable across targets.
 - **Replay can check any edge,** not only the three outputs `replay --verify` compares today.
 - **SYS-02 is enforced by the build.** Truth is an external port that only the SITL interface has, so a flight graph that reads it fails to build. `TruthConsumer` goes away.
 - **The multi-node layer (ADR 0001, decision 4) gets its model.** An edge between nodes is a message in the inter-node envelope.
-- **The cost is a generator that becomes a small compiler:** it parses graphs, checks domains and cycles, and orders regions. The invariants of the hand-written stacks (a valid field, ticks in order) move into the generated code or into the mission interface's contract.
+- **The cost is a builder that checks graphs:** the compiler checks domains, handlers and ports, and the builder checks the order, the regions, the rate rules, the state and the classes. The invariants of the hand-written stacks (a valid field, ticks in order) move into the generated code or into the mission interface's contract.
 - **Comparability now rests on the mission interface.** ADR 0001 secured it by fixing the slots. Now the mission fixes its external ports, its scorer and its composites. Scoreboard baselines vary only inside the composites, so their differences can still be attributed. Research baselines vary the whole graph, and their scores are comparable but can't be attributed to one composite (decision 6).
 - **A mission's composites become its most consequential choice.** Changing one moves every scoreboard baseline, as changing a slot did.
 - **Every existing implementation survives** as a CPU implementation of an operator. `make_slot` and `from_context` remain how an operator is built from the mission's context.
 
-**Current state:** accepted on 2026-11-02. Step 1 is complete ([plan](../plan/flow-domains/README.md), [anatomy#40](https://github.com/branes-ai/anatomy/issues/40), [anatomy#43](https://github.com/branes-ai/anatomy/pull/43)): the domain and signature types in the core (`flow/`), and the mobility messages' domains and the neutral composites' signatures (`mobility/flow/`), released in v0.7.0. Step 2, the graph format, the generator and the baseline classes, is planned ([plan](../plan/flow-graph/README.md), [anatomy#47](https://github.com/branes-ai/anatomy/issues/47)).
+**Current state:** accepted on 2026-11-02. Step 1 is complete ([plan](../plan/flow-domains/README.md), [anatomy#40](https://github.com/branes-ai/anatomy/issues/40), [anatomy#43](https://github.com/branes-ai/anatomy/pull/43)): the domain and signature types in the core (`flow/`), and the mobility messages' domains and the neutral composites' signatures (`mobility/flow/`), released in v0.7.0. Step 2, the graph builder, the CPU stack and the baseline classes, is in progress ([plan](../plan/flow-graph/README.md), [anatomy#47](https://github.com/branes-ai/anatomy/issues/47)): the builder and its checks (`flow/builder.hpp`, `flow/graph.hpp`) are 2a.
+
+Decision 2 was amended on 2026-11-02, before step 2 merged anything. It said "a graph format in the baseline file", and "a generator" that checks the graph at configure time and emits the CPU schedule as static C++. It now describes the graph in C++, with a checking builder, and the baseline file names only what fills it. A file format would be a new format to design, parse and keep in step with the C++ types. The formats examined don't hold a mission's graph: GGUF holds weights and metadata, and builds its graph in code; domain_flow's DFG describes one dataflow call, with no regions, rate rules, persistent state or composites, and is step 4's export target. Step 1's domains are C++ types, so the compiler checks every edge. The CPU stack is built from the checked graph, with no generator (the plan's design choice 7).

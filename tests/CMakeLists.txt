@@ -65,8 +65,9 @@ set_tests_properties(compile_fail.time_base.narrow_wide PROPERTIES
     PASS_REGULAR_EXPRESSION "Wide has fewer significand digits than T")
 
 # The domain flow vocabulary's invariants (flow/domain.hpp, flow/signature.hpp;
-# docs/plan/flow-domains): one file per violation, each expecting the message
-# of the invariant it breaks. The tests build in the one build tree, so they
+# docs/plan/flow-domains), and the graph invariants the compiler checks
+# (flow/builder.hpp; docs/plan/flow-graph): one file per violation, each
+# expecting the message of the invariant it breaks. The tests build in the one build tree, so they
 # hold a lock and run one at a time, the time base's test among them.
 set(flow_compile_fail
     "d1_dim|D1: every extent has a size or a bound of at least 1"
@@ -78,7 +79,18 @@ set(flow_compile_fail
     "r1_empty|R1: a record has at least one field"
     "r1_duplicate|R1: a record's field names are non-empty and distinct"
     "s1_duplicate|S1: the port and state names are non-empty and distinct"
-    "s2_no_output|S2: a signature has at least one out or inout port, or a state domain")
+    "s2_no_output|S2: a signature has at least one out or inout port, or a state domain"
+    "g1_operator|G1: an operator's name matches"
+    "g2_handler|G2: a firing names a handler its node declares"
+    "g2_port|G2: a handler's in ports are in or inout ports of its signature"
+    "g2_body|G2: a body fills its composite: it has its binding"
+    "g3_arity|G3: every in port of the handler has one source"
+    "g3_time|G3: a handler that takes a time is fired at"
+    "g3_no_time|G3: a handler that takes no time is not fired at an input"
+    "g4_edge|G4: every edge joins two ports of the same domain"
+    "g4_projection|field_t: R is a record"
+    "g4_output|G4: every edge joins two ports of the same domain"
+    "g4_body|G4: a body's handler returns its composite handler's out ports")
 foreach(entry IN LISTS flow_compile_fail)
     string(REPLACE "|" ";" entry "${entry}")
     list(GET entry 0 case)
