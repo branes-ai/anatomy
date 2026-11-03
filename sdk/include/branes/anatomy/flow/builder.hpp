@@ -10,13 +10,21 @@
 /// Graph (flow/graph.hpp).
 ///
 /// Model:
-///   handler<Name, ins<...>, outs<...>, State, Time> : one function of a binding
+///   handler<Name, ins<...>, outs<...>, State, Time> : one function of a binding;
+///                            to run, a struct deriving from it with a static call()
 ///   a binding B            : B::signature (step 1) and B::handlers
 ///   registered<Name, T, B> : an operator, its C++ type and its binding
-///   a body                 : Body::name, Body::binding, Body::build(body<B>&)
-///   value<D>               : a value of domain D: an input, a constant, or an out port of a firing
+///   a body                 : Body::name, Body::binding, Body::build(auto& body)
+///   value<X>               : a value of message type X (or of domain X, to describe
+///                            only): an input, a constant, or an out port of a firing
 ///   node<B>                : a composite or an operator instance, of binding B
 ///   scope                  : the region a firing goes into
+///   stack_builder<Ctx>     : a builder that also builds the operators, from the
+///                            mission's context, and returns the CPU stack (stack)
+///
+/// A mission's description is a template over its builder (template <class G>
+/// void graph(G& g)): built with a builder, it is checked and returns the
+/// Graph; built with a stack_builder, it also builds the stack that runs it.
 ///
 /// The checks split by where the facts live. What the types know is checked
 /// by the compiler, with a static_assert that names the invariant: a firing
@@ -38,13 +46,17 @@
 #include <branes/anatomy/flow/domains.hpp>
 #include <branes/anatomy/flow/graph.hpp>
 #include <branes/anatomy/flow/signature.hpp>
+#include <branes/anatomy/msg/time.hpp>
 #include <branes/anatomy/result.hpp>
+#include <branes/anatomy/slots/slot_context.hpp>
 
 #include <array>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -122,6 +134,17 @@ struct handler : detail::handler_tag {
     static constexpr bool timed = Time == takes_time::yes;
 };
 
+/// To run on the CPU, a handler is a struct deriving from handler<>, whose
+/// static call() fires it on its operator:
+///
+///   struct frame : flow::handler<"frame", flow::ins<"camera">, flow::outs<>, flow::state_role::update> {
+///       static void call(auto& est, const CameraFrame& f) { est.process_frame(f); }
+///   };
+///
+/// call(op, [time,] in...) takes the operator, the time if the handler takes
+/// one, and the in ports' messages, in order; it returns nothing, the out
+/// port's message, or a std::tuple of the out ports' messages.
+
 template <class... H>
 struct handlers {
     static_assert((std::is_base_of_v<detail::handler_tag, H> && ...), "handlers<> holds handlers");
@@ -163,8 +186,8 @@ template <class Sig, class... H>
 }  // namespace detail
 
 /// A binding: the CPU calling convention of a composite's operators, or of
-/// an operator of its own. It gives its signature (step 1) and its handlers;
-/// the CPU stack (2b) adds one static function per handler.
+/// an operator of its own. It gives its signature (step 1) and its handlers,
+/// each with its call() to run.
 template <class B>
 concept binding = requires {
     typename B::signature;
@@ -187,15 +210,20 @@ struct find_handler {
     using type = std::tuple_element_t<(index < list::size ? index : 0), typename list::types>;
 };
 
+/// A port's message type, or its domain if it carries none.
+template <class Sig, fixed_string N>
+using port_value_t = std::conditional_t<std::is_void_v<message_t<Sig, N>>, port_t<Sig, N>, message_t<Sig, N>>;
+
+/// A handler's ports' message types (or domains), in order.
 template <class Sig, class Names>
-struct port_domains;
+struct port_values;
 template <class Sig, fixed_string... N>
-struct port_domains<Sig, ins<N...>> {
-    using type = std::tuple<port_t<Sig, N>...>;
+struct port_values<Sig, ins<N...>> {
+    using type = std::tuple<port_value_t<Sig, N>...>;
 };
 template <class Sig, fixed_string... N>
-struct port_domains<Sig, outs<N...>> {
-    using type = std::tuple<port_t<Sig, N>...>;
+struct port_values<Sig, outs<N...>> {
+    using type = std::tuple<port_value_t<Sig, N>...>;
 };
 }  // namespace detail
 
@@ -218,26 +246,40 @@ inline constexpr bool is_registered_v = std::is_base_of_v<detail::registered_tag
 
 // ── Values ──────────────────────────────────────────────────────────
 
-/// A value of domain D: an input, a constant, or an out port of a firing,
-/// with the record fields projected from it.
-template <class D>
-struct value {
-    static_assert(is_data_v<D>, "a value holds a domain or a record");
-    using domain = D;
+namespace detail {
+/// One projection of a record: the member's address in the record's.
+using access_fn = const void* (*)(const void*);
+
+inline constexpr std::size_t no_slot = std::numeric_limits<std::size_t>::max();
+
+/// What a value is, untyped: where the graph reads it from (Ref), where the
+/// stack keeps it (a slot), and the projections taken from it.
+struct source {
     Ref ref;
+    std::size_t slot = no_slot;
+    std::vector<access_fn> access;  ///< outermost first, one per ref.path entry
+};
+}  // namespace detail
+
+/// A value of message type X: an input, a constant, or an out port of a
+/// firing, with the record fields projected from it. X may be a domain, to
+/// describe a graph that doesn't run.
+template <class X>
+struct value : detail::source {
+    static_assert(is_port_data_v<X>, "a value holds a message type with a domain, a domain or a record");
+    using type = X;
+    using domain = data_t<X>;
 };
 
 /// An external input: a message M the stack is handed, which fires its trigger.
 template <class M>
-struct input_port : value<domain_of_t<M>> {
-    using message = M;
+struct input_port : value<M> {
+    std::size_t index = 0;  ///< the builder's
 };
 
 /// A constant: a message M fixed when the stack is built.
 template <class M>
-struct constant_port : value<domain_of_t<M>> {
-    using message = M;
-};
+struct constant_port : value<M> {};
 
 /// An external output: a message M the stack returns from a region.
 template <class M>
@@ -247,10 +289,9 @@ struct output_port {
 };
 
 /// A value read in another region than its own: the latest value written.
-template <class D>
-struct held {
-    using domain = D;
-    Ref ref;
+template <class X>
+struct held : detail::source {
+    using type = X;
 };
 
 /// The input whose time a time handler takes.
@@ -265,9 +306,9 @@ struct node {
     std::size_t index = 0;
 };
 
-template <class D>
-[[nodiscard]] held<D> hold(const value<D>& v) {
-    held<D> h{v.ref};
+template <class X>
+[[nodiscard]] held<X> hold(const value<X>& v) {
+    held<X> h{static_cast<const detail::source&>(v)};
     h.ref.rate = rate_rule::hold;
     return h;
 }
@@ -277,33 +318,46 @@ template <class M>
     return time_of{in.ref.port};
 }
 
-/// The field `F` of a record value (G4: its domain is field_t of the record).
-template <fixed_string F, class D>
-[[nodiscard]] value<field_t<D, F>> project(const value<D>& v) {
-    value<field_t<D, F>> out{v.ref};
+/// The field `F` of a record value that only describes (X is a domain).
+template <fixed_string F, class X>
+[[nodiscard]] auto project(const value<X>& v) {
+    static_assert(is_data_v<X>, "a projection of a message names its member: project<\"f\", &M::f>(x)");
+    if constexpr (is_data_v<X>) {
+        value<field_t<X, F>> out{static_cast<const detail::source&>(v)};
+        out.ref.path.emplace_back(F.view());
+        return out;
+    }
+}
+
+/// The field `F` of a message, as its member `Member` (G4: the member's
+/// domain is field_t of the message's record).
+template <fixed_string F, auto Member, class M>
+[[nodiscard]] auto project(const value<M>& v) {
+    static_assert(std::is_member_object_pointer_v<decltype(Member)>, "project<\"f\", &M::f>: a member of M");
+    using C = std::remove_cvref_t<decltype(std::declval<const M&>().*Member)>;
+    static_assert(std::is_same_v<data_t<C>, field_t<data_t<M>, F>>,
+                  "G4: a projection x.f is field_t of x's record, and the member's domain is it");
+    value<C> out{static_cast<const detail::source&>(v)};
     out.ref.path.emplace_back(F.view());
+    out.access.push_back(+[](const void* p) -> const void* { return &(static_cast<const M*>(p)->*Member); });
     return out;
 }
 
 namespace detail {
-template <class D>
-D source_domain(const value<D>&);
-template <class D>
-D source_domain(const held<D>&);
+template <class X>
+X source_type(const value<X>&);
+template <class X>
+X source_type(const held<X>&);
 
 template <class S>
-concept source = requires(const S& s) { source_domain(s); };
+concept source_like = requires(const S& s) { source_type(s); };
 
 template <class S>
-using source_domain_t = decltype(source_domain(std::declval<const S&>()));
+using source_type_t = decltype(source_type(std::declval<const S&>()));
 
-template <class D>
-[[nodiscard]] Ref ref_of(const value<D>& v) {
-    return v.ref;
-}
-template <class D>
-[[nodiscard]] Ref ref_of(const held<D>& h) {
-    return h.ref;
+template <class S>
+[[nodiscard]] source source_of(const S& s) {
+    return static_cast<const source&>(s);
 }
 
 /// A handler, as the builder records it.
@@ -332,29 +386,157 @@ template <class B>
     }(std::make_index_sequence<std::tuple_size_v<list>>{});
 }
 
-template <class Domains>
-[[nodiscard]] auto values_of(std::span<const Ref> refs) {
+template <class Types>
+[[nodiscard]] auto values_of(std::span<const source> sources) {
     return [&]<std::size_t... I>(std::index_sequence<I...>) {
-        return std::tuple<value<std::tuple_element_t<I, Domains>>...>{
-            value<std::tuple_element_t<I, Domains>>{refs[I]}...};
-    }(std::make_index_sequence<std::tuple_size_v<Domains>>{});
+        return std::tuple<value<std::tuple_element_t<I, Types>>...>{
+            value<std::tuple_element_t<I, Types>>{sources[I]}...};
+    }(std::make_index_sequence<std::tuple_size_v<Types>>{});
 }
 
-template <class... D>
-[[nodiscard]] std::vector<Ref> refs_of(const std::tuple<value<D>...>& values) {
-    return std::apply([](const auto&... v) { return std::vector<Ref>{v.ref...}; }, values);
+template <class... X>
+[[nodiscard]] std::vector<source> sources_of(const std::tuple<value<X>...>& values) {
+    return std::apply([](const auto&... v) { return std::vector<source>{source_of(v)...}; }, values);
 }
 
-template <class Domains, class... S>
-[[nodiscard]] constexpr bool domains_match() noexcept {
-    if constexpr (std::tuple_size_v<Domains> != sizeof...(S)) {
+/// G4: each source has its port's domain and, when both have one, its message type.
+template <class Ports, class... S>
+[[nodiscard]] constexpr bool edges_match() noexcept {
+    if constexpr (std::tuple_size_v<Ports> != sizeof...(S)) {
         return true;  // G3 reports it
     } else {
         return []<std::size_t... I>(std::index_sequence<I...>) {
-            return (std::is_same_v<std::tuple_element_t<I, Domains>,
-                                   source_domain_t<std::tuple_element_t<I, std::tuple<S...>>>> &&
+            return (std::is_same_v<data_t<std::tuple_element_t<I, Ports>>,
+                                   data_t<source_type_t<std::tuple_element_t<I, std::tuple<S...>>>>> &&
                     ...);
         }(std::index_sequence_for<S...>{});
+    }
+}
+
+template <class P, class S>
+inline constexpr bool same_message_v = is_data_v<P> || is_data_v<S> || std::is_same_v<P, S>;
+
+template <class Ports, class... S>
+[[nodiscard]] constexpr bool messages_match() noexcept {
+    if constexpr (std::tuple_size_v<Ports> != sizeof...(S)) {
+        return true;
+    } else {
+        return []<std::size_t... I>(std::index_sequence<I...>) {
+            return (same_message_v<std::tuple_element_t<I, Ports>,
+                                   source_type_t<std::tuple_element_t<I, std::tuple<S...>>>> &&
+                    ...);
+        }(std::index_sequence_for<S...>{});
+    }
+}
+
+// ── What the stack runs ─────────────────────────────────────────────
+
+/// A firing, as the stack runs it: its operator, its in ports' messages, its
+/// out ports' messages, and the time it takes.
+using thunk_fn = void (*)(void* op, const void* const* in, void* const* out, Timestamp at);
+
+/// A new slot for a message; null for a port that carries none.
+using slot_factory = std::shared_ptr<void> (*)();
+
+template <class X>
+[[nodiscard]] std::shared_ptr<void> new_slot() {
+    return std::make_shared<X>();
+}
+
+template <class X>
+[[nodiscard]] constexpr slot_factory factory_of() noexcept {
+    if constexpr (is_data_v<X>) {
+        return nullptr;
+    } else {
+        return &new_slot<X>;
+    }
+}
+
+template <class Types>
+[[nodiscard]] std::vector<slot_factory> factories_of() {
+    return []<std::size_t... I>(std::index_sequence<I...>) {
+        return std::vector<slot_factory>{factory_of<std::tuple_element_t<I, Types>>()...};
+    }(std::make_index_sequence<std::tuple_size_v<Types>>{});
+}
+
+template <class Op, class H, class Ins>
+struct callable;
+template <class Op, class H, class... In>
+struct callable<Op, H, std::tuple<In...>> {
+    static constexpr bool value = H::timed ? requires(Op& o, Timestamp t, const In&... in) { H::call(o, t, in...); }
+                                           : requires(Op& o, const In&... in) { H::call(o, in...); };
+};
+
+/// The thunk that fires handler H of an operator of type Op.
+template <class Op, class Sig, class H>
+[[nodiscard]] thunk_fn thunk_of() {
+    using in_types = typename port_values<Sig, typename H::in>::type;
+    using out_types = typename port_values<Sig, typename H::out>::type;
+    static_assert(
+        []<std::size_t... I>(std::index_sequence<I...>) {
+            return (!is_data_v<std::tuple_element_t<I, in_types>> && ...);
+        }(std::make_index_sequence<std::tuple_size_v<in_types>>{}) &&
+            []<std::size_t... I>(std::index_sequence<I...>) {
+                return (!is_data_v<std::tuple_element_t<I, out_types>> && ...);
+            }(std::make_index_sequence<std::tuple_size_v<out_types>>{}),
+        "the CPU stack runs a handler whose ports carry message types");
+    static_assert(callable<Op, H, in_types>::value,
+                  "G2: a handler's call() takes its operator, its time if it takes one, and its in ports' messages");
+    if constexpr (callable<Op, H, in_types>::value) {
+        return [](void* op,
+                  [[maybe_unused]] const void* const* in,
+                  [[maybe_unused]] void* const* out,
+                  [[maybe_unused]] Timestamp at) {
+            Op& o = *static_cast<Op*>(op);
+            [&]<std::size_t... I>(std::index_sequence<I...>) {
+                const auto call = [&]() -> decltype(auto) {
+                    if constexpr (H::timed) {
+                        return H::call(o, at, *static_cast<const std::tuple_element_t<I, in_types>*>(in[I])...);
+                    } else {
+                        return H::call(o, *static_cast<const std::tuple_element_t<I, in_types>*>(in[I])...);
+                    }
+                };
+                constexpr std::size_t n = std::tuple_size_v<out_types>;
+                if constexpr (n == 0) {
+                    call();
+                } else if constexpr (n == 1) {
+                    *static_cast<std::tuple_element_t<0, out_types>*>(out[0]) = call();
+                } else {
+                    auto r = call();
+                    [&]<std::size_t... J>(std::index_sequence<J...>) {
+                        ((*static_cast<std::tuple_element_t<J, out_types>*>(out[J]) = std::get<J>(std::move(r))), ...);
+                    }(std::make_index_sequence<n>{});
+                }
+            }(std::make_index_sequence<std::tuple_size_v<in_types>>{});
+        };
+    } else {
+        return nullptr;
+    }
+}
+
+template <class Op, class B>
+[[nodiscard]] std::vector<thunk_fn> thunks_of() {
+    using list = typename B::handlers::types;
+    return [&]<std::size_t... I>(std::index_sequence<I...>) {
+        return std::vector<thunk_fn>{thunk_of<Op, typename B::signature, std::tuple_element_t<I, list>>()...};
+    }(std::make_index_sequence<std::tuple_size_v<list>>{});
+}
+
+/// An input's time, from its message: the accessor given, the tick's own
+/// time, or the message's member `t`.
+template <class M>
+[[nodiscard]] std::function<Timestamp(const void*)> time_fn_of(Timestamp (*time)(const M&)) {
+    if (time != nullptr) {
+        return [time](const void* m) { return time(*static_cast<const M*>(m)); };
+    }
+    if constexpr (std::is_same_v<M, Timestamp>) {
+        return [](const void* m) { return *static_cast<const Timestamp*>(m); };
+    } else if constexpr (requires(const M& m) {
+                             { m.t } -> std::convertible_to<Timestamp>;
+                         }) {
+        return [](const void* m) { return Timestamp{static_cast<const M*>(m)->t}; };
+    } else {
+        return nullptr;
     }
 }
 }  // namespace detail
@@ -362,6 +544,7 @@ template <class Domains, class... S>
 // ── The builder ─────────────────────────────────────────────────────
 
 class builder;
+class stack;
 
 /// The region a firing goes into; in a body, also the composite handler the
 /// firing implements.
@@ -385,16 +568,14 @@ private:
 /// What a body's handler is, once its types are checked: given its scope,
 /// the time it takes (or null), and its composite handler's sources, it fires
 /// the body's operators and returns the composite handler's out ports.
-using body_handler = std::function<std::vector<Ref>(scope&, const time_of*, std::span<const Ref>)>;
+using body_handler =
+    std::function<std::vector<detail::source>(scope&, const time_of*, std::span<const detail::source>)>;
 
+template <class M>
 struct input_options {
-    std::string trigger;  ///< empty: the input's own name
-    std::string time;     ///< the message member holding its time; empty: `t`
+    std::string trigger;                    ///< empty: the input's own name
+    Timestamp (*time)(const M&) = nullptr;  ///< empty: the tick's own time, or the message's member `t`
     bool sitl_only = false;
-};
-
-struct constant_options {
-    std::string from;  ///< what the stack is built from; empty: a default value
 };
 
 /// Records a graph as it is described, checking it as it goes.
@@ -406,7 +587,7 @@ struct constant_options {
 /// Pre, for every call: the handles it is given were returned by this builder.
 class builder {
 public:
-    builder(std::string mission, baseline_class kind);
+    builder(std::string mission, baseline_class kind) : builder(std::move(mission), kind, false) {}
     builder(const builder&) = delete;
     builder& operator=(const builder&) = delete;
 
@@ -420,19 +601,33 @@ public:
     }
 
     /// Output `out` is written by `v`, a firing of the output's region (G3, G6).
-    template <class M, class D>
-    void produce(const output_port<M>& out, const value<D>& v) {
-        static_assert(std::is_same_v<domain_of_t<M>, D>, "G4: every edge joins two ports of the same domain");
-        produce_ref(out.index, v.ref);
+    template <class M, class X>
+    void produce(const output_port<M>& out, const value<X>& v) {
+        static_assert(std::is_same_v<data_t<M>, data_t<X>> && detail::same_message_v<M, X>,
+                      "G4: every edge joins two ports of the same domain, and of one message type");
+        produce_source(out.index, v);
     }
 
     /// The checked graph, or the first invariant it breaks.
     [[nodiscard]] result<Graph, config::ConfigError> build() const;
 
+    /// The CPU stack that runs the checked graph, which takes the builder's
+    /// operators and slots: a builder builds one stack. Pre: a stack_builder.
+    [[nodiscard]] result<stack, config::ConfigError> build_stack() &&;
+
     // ── The typed functions' entry points (below); not for missions ──
 
-    [[nodiscard]] Ref add_input(std::string name, bool message, input_options options);
-    [[nodiscard]] Ref add_constant(std::string name, constant_options options);
+    struct input_ref {
+        detail::source source;
+        std::size_t index = 0;
+    };
+    [[nodiscard]] input_ref add_input(std::string name,
+                                      bool message,
+                                      std::string trigger,
+                                      bool sitl_only,
+                                      std::shared_ptr<void> slot,
+                                      std::function<Timestamp(const void*)> time);
+    [[nodiscard]] detail::source add_constant(std::string name, std::shared_ptr<void> slot);
     [[nodiscard]] std::size_t add_output(std::string name, const Ref& trigger);
     [[nodiscard]] std::size_t add_composite(std::string name,
                                             std::string_view body,
@@ -444,28 +639,35 @@ public:
                                                 std::string local,
                                                 std::string_view op,
                                                 std::vector<detail::handler_info> handlers);
+    /// The operator node `node` fires, and the thunk of each of its handlers.
+    void
+    set_operator(std::size_t node, result<std::shared_ptr<void>, std::string> op, std::vector<detail::thunk_fn> thunks);
     void add_body_handler(std::size_t composite, std::string_view handler, body_handler fn);
     void end_body(std::size_t composite);
-    [[nodiscard]] std::vector<Ref>
-    fire(scope& s, std::size_t node, std::string_view handler, const time_of* at, std::vector<Ref> in);
+    [[nodiscard]] std::vector<detail::source> fire(scope& s,
+                                                   std::size_t node,
+                                                   std::string_view handler,
+                                                   const time_of* at,
+                                                   std::vector<detail::source> in,
+                                                   std::span<const detail::slot_factory> outs);
+
+protected:
+    builder(std::string mission, baseline_class kind, bool runs);
 
 private:
     struct input_rec {
         std::string name;
         bool message = true;
         std::string trigger;
-        std::string time;  ///< for the CPU stack (2b)
         bool sitl_only = false;
-    };
-    struct constant_rec {
-        std::string name;
-        std::string from;  ///< for the CPU stack (2b)
+        std::size_t slot = 0;
+        std::function<Timestamp(const void*)> time;
     };
     struct output_rec {
         std::string name;
         std::string region;
         bool produced = false;
-        Ref from;
+        detail::source from;
     };
     struct node_rec {
         std::string name;
@@ -477,37 +679,168 @@ private:
         bool of_one_operator = true;
         std::vector<body_handler> body;  ///< per handler, a body of several operators
         std::string body_name;
+        std::vector<detail::thunk_fn> thunks;  ///< per handler, to run
+    };
+    /// A firing, as the stack will run it.
+    struct firing_rec {
+        std::size_t instance = 0;
+        detail::thunk_fn thunk = nullptr;
+        std::vector<detail::source> in;
+        std::vector<std::size_t> out;      ///< slots
+        std::size_t at = detail::no_slot;  ///< the input whose time it takes
     };
 
     [[nodiscard]] scope region_of(const std::string& input);
-    void produce_ref(std::size_t out, const Ref& from);
+    void produce_source(std::size_t out, const detail::source& from);
     void fail(std::string key, std::string message);
     void check_name(const std::string& key, const std::string& name, std::string_view what);
     void check_source(const Ref& ref, const std::string& trigger, const std::string& key);
     [[nodiscard]] const input_rec* find_input(std::string_view name) const;
-    [[nodiscard]] static std::vector<Ref> no_refs(std::size_t n);
+    [[nodiscard]] std::size_t add_slot(std::shared_ptr<void> slot);
 
     Graph graph_;
+    bool runs_ = false;     ///< a stack_builder's: the graph is also run
+    bool stacked_ = false;  ///< build_stack() has taken the operators and slots
     std::vector<input_rec> inputs_;
-    std::vector<constant_rec> constants_;
+    std::vector<std::string> constants_;
     std::vector<output_rec> outputs_;
     std::vector<node_rec> nodes_;
     std::vector<std::string> names_;                 ///< nodes and external ports: one namespace (G1)
     std::vector<std::string> fired_;                 ///< `instance.handler@at`, once each (G6)
     std::vector<std::vector<std::size_t>> updated_;  ///< per region, the instances it updates (G5)
+    std::vector<std::shared_ptr<void>> slots_;       ///< every input's, constant's and out port's message
+    std::vector<std::shared_ptr<void>> operators_;   ///< per instance
+    std::vector<std::vector<firing_rec>> runs_of_;   ///< per region, its firings, to run
     std::optional<config::ConfigError> error_;
+};
+
+/// A builder that also builds each operator from the mission's context Ctx
+/// (make_slot), so build_stack() returns the stack that runs the graph.
+template <class Ctx>
+class stack_builder : public builder {
+public:
+    stack_builder(std::string mission, baseline_class kind, const Ctx& ctx)
+        : builder(std::move(mission), kind, true), ctx_(&ctx) {}
+
+    [[nodiscard]] const Ctx& context() const noexcept {
+        return *ctx_;
+    }
+
+private:
+    const Ctx* ctx_;
+};
+
+namespace detail {
+template <class G>
+concept describes = std::derived_from<G, builder>;
+
+template <class G>
+concept runs = describes<G> && requires(const G& g) { g.context(); };
+
+/// Build operator Op of node `n` from g's context, with its binding's thunks.
+template <class Op, class B, class G>
+void build_operator(G& g, std::size_t n) {
+    if constexpr (runs<G>) {
+        auto made = make_slot<Op>(g.context());
+        result<std::shared_ptr<void>, std::string> op =
+            made ? result<std::shared_ptr<void>, std::string>(
+                       std::shared_ptr<void>(std::make_shared<Op>(std::move(made).value())))
+                 : result<std::shared_ptr<void>, std::string>(made.error());
+        g.set_operator(n, std::move(op), thunks_of<Op, B>());
+    } else {
+        (void)g;
+        (void)n;
+    }
+}
+}  // namespace detail
+
+/// The CPU stack: the checked graph's operators and the values they read and
+/// write, fired region by region in the checked order. Built by
+/// stack_builder::build_stack(); it allocates nothing and throws nothing once
+/// built, and calls no virtual function: each firing is one indirect call.
+///
+/// A message that holds a pointer it doesn't own (a camera frame) is valid
+/// only while its region runs.
+class stack {
+public:
+    stack(stack&&) noexcept = default;
+    stack& operator=(stack&&) noexcept = default;
+    stack(const stack&) = delete;
+    stack& operator=(const stack&) = delete;
+
+    /// Hand the stack input `in`'s message, and run its trigger's region, if it has one.
+    template <class M>
+    void input(const input_port<M>& in, const M& m) {
+        *static_cast<M*>(inputs_[in.index].slot) = m;
+        if (inputs_[in.index].region != detail::no_slot) {
+            run(inputs_[in.index].region);
+        }
+    }
+
+    /// Output `out`'s message, as its region last wrote it.
+    template <class M>
+    [[nodiscard]] const M& output(const output_port<M>& out) const noexcept {
+        return *static_cast<const M*>(outputs_[out.index]);
+    }
+
+    [[nodiscard]] const Graph& graph() const noexcept {
+        return graph_;
+    }
+    /// graph_hash(graph()).
+    [[nodiscard]] const std::string& hash() const noexcept {
+        return hash_;
+    }
+
+private:
+    friend class builder;
+    stack() = default;
+
+    struct firing {
+        detail::thunk_fn thunk = nullptr;
+        void* op = nullptr;
+        std::vector<const void*> in;
+        std::vector<void*> out;
+        std::size_t at = detail::no_slot;  ///< the input whose time it takes
+    };
+    struct input_rec {
+        void* slot = nullptr;
+        std::size_t region = detail::no_slot;
+        std::function<Timestamp(const void*)> time;
+    };
+
+    void run(std::size_t region) {
+        for (const firing& f : regions_[region]) {
+            const Timestamp t = f.at == detail::no_slot ? Timestamp{} : inputs_[f.at].time(inputs_[f.at].slot);
+            f.thunk(f.op, f.in.data(), f.out.data(), t);
+        }
+    }
+
+    std::vector<std::shared_ptr<void>> slots_;
+    std::vector<std::shared_ptr<void>> operators_;
+    std::vector<std::vector<firing>> regions_;
+    std::vector<input_rec> inputs_;
+    std::vector<const void*> outputs_;
+    Graph graph_;
+    std::string hash_;
 };
 
 // ── The typed functions ─────────────────────────────────────────────
 
 template <class M>
-[[nodiscard]] input_port<M> input(builder& g, std::string name, input_options options = {}) {
-    return input_port<M>{{g.add_input(std::move(name), true, std::move(options))}};
+[[nodiscard]] input_port<M> input(builder& g, std::string name, input_options<M> options = {}) {
+    std::string trigger = options.trigger.empty() ? name : std::move(options.trigger);
+    auto in = g.add_input(std::move(name),
+                          true,
+                          std::move(trigger),
+                          options.sitl_only,
+                          std::make_shared<M>(),
+                          detail::time_fn_of<M>(options.time));
+    return input_port<M>{{in.source}, in.index};
 }
 
 template <class M>
-[[nodiscard]] constant_port<M> constant(builder& g, std::string name, constant_options options = {}) {
-    return constant_port<M>{{g.add_constant(std::move(name), std::move(options))}};
+[[nodiscard]] constant_port<M> constant(builder& g, std::string name, M value = {}) {
+    return constant_port<M>{{g.add_constant(std::move(name), std::make_shared<M>(std::move(value)))}};
 }
 
 /// An output written in `trigger`'s region.
@@ -517,13 +850,13 @@ template <class M, class N>
 }
 
 /// What a body of several operators is given to describe itself.
-template <class B>
+template <class B, class G = builder>
 class body {
 public:
     using binding = B;
-    body(builder& g, std::size_t composite) : owner_(&g), composite_(composite) {}
+    body(G& g, std::size_t composite) : owner_(&g), composite_(composite) {}
 
-    [[nodiscard]] builder& owner() const noexcept {
+    [[nodiscard]] G& owner() const noexcept {
         return *owner_;
     }
     [[nodiscard]] std::size_t composite() const noexcept {
@@ -531,13 +864,13 @@ public:
     }
 
 private:
-    builder* owner_;
+    G* owner_;
     std::size_t composite_;
 };
 
 namespace detail {
-template <class Body>
-concept body_type = requires(body<typename Body::binding>& b) {
+template <class Body, class G>
+concept body_type = requires(body<typename Body::binding, G>& b) {
     { Body::name } -> std::convertible_to<std::string_view>;
     Body::build(b);
 };
@@ -545,17 +878,19 @@ concept body_type = requires(body<typename Body::binding>& b) {
 
 /// A composite of binding B, filled by Body: a registered operator of B, or
 /// a body of several operators. In a scoreboard graph only (G8).
-template <binding B, class Body>
-[[nodiscard]] node<B> composite(builder& g, std::string name) {
-    static_assert(is_registered_v<Body> || detail::body_type<Body>,
+template <binding B, class Body, detail::describes G>
+[[nodiscard]] node<B> composite(G& g, std::string name) {
+    static_assert(is_registered_v<Body> || detail::body_type<Body, G>,
                   "G2: a composite's body is a registered operator, or a body of several");
     static_assert(std::is_same_v<typename Body::binding, B>, "G2: a body fills its composite: it has its binding");
     if constexpr (is_registered_v<Body>) {
-        return node<B>{g.add_composite(std::move(name), Body::name, detail::handlers_of<B>(), true)};
+        const std::size_t c = g.add_composite(std::move(name), Body::name, detail::handlers_of<B>(), true);
+        detail::build_operator<typename Body::type, B>(g, c);
+        return node<B>{c};
     } else {
         static_assert(detail::is_operator_name(Body::name), "G1: a body's name matches [A-Za-z0-9_]+");
         const std::size_t c = g.add_composite(std::move(name), Body::name, detail::handlers_of<B>(), false);
-        body<B> b{g, c};
+        body<B, G> b{g, c};
         Body::build(b);
         g.end_body(c);
         return node<B>{c};
@@ -563,32 +898,41 @@ template <binding B, class Body>
 }
 
 /// An operator instance of a research graph (G8).
-template <class Op>
-[[nodiscard]] node<typename Op::binding> instance(builder& g, std::string name) {
+template <class Op, detail::describes G>
+[[nodiscard]] node<typename Op::binding> instance(G& g, std::string name) {
     static_assert(is_registered_v<Op>, "G2: an instance is of a registered operator");
-    return node<typename Op::binding>{
-        g.add_instance(std::move(name), Op::name, detail::handlers_of<typename Op::binding>())};
+    using B = typename Op::binding;
+    const std::size_t n = g.add_instance(std::move(name), Op::name, detail::handlers_of<B>());
+    detail::build_operator<typename Op::type, B>(g, n);
+    return node<B>{n};
 }
 
 /// An operator instance of a body, named `<composite>.<name>`.
-template <class Op, class B>
-[[nodiscard]] node<typename Op::binding> instance(body<B>& b, std::string name) {
+template <class Op, class B, class G>
+[[nodiscard]] node<typename Op::binding> instance(body<B, G>& b, std::string name) {
     static_assert(is_registered_v<Op>, "G2: an instance is of a registered operator");
-    return node<typename Op::binding>{b.owner().add_body_instance(
-        b.composite(), std::move(name), Op::name, detail::handlers_of<typename Op::binding>())};
+    using OB = typename Op::binding;
+    const std::size_t n =
+        b.owner().add_body_instance(b.composite(), std::move(name), Op::name, detail::handlers_of<OB>());
+    detail::build_operator<typename Op::type, OB>(b.owner(), n);
+    return node<OB>{n};
 }
 
 namespace detail {
 template <class H, class B, class... S>
 [[nodiscard]] auto fire(scope& s, std::size_t node, const time_of* at, const S&... sources) {
     using sig = typename B::signature;
-    using in_domains = typename port_domains<sig, typename H::in>::type;
-    using out_domains = typename port_domains<sig, typename H::out>::type;
-    static_assert((source<S> && ...), "G3: a source is a value, an input, a constant, or hold(...) of one");
+    using in_types = typename port_values<sig, typename H::in>::type;
+    using out_types = typename port_values<sig, typename H::out>::type;
+    static_assert((source_like<S> && ...), "G3: a source is a value, an input, a constant, or hold(...) of one");
     static_assert(sizeof...(S) == H::in::size, "G3: every in port of the handler has one source");
-    static_assert(domains_match<in_domains, S...>(), "G4: every edge joins two ports of the same domain");
-    const std::vector<Ref> outs = s.owner().fire(s, node, H::name, at, std::vector<Ref>{ref_of(sources)...});
-    return values_of<out_domains>(outs);
+    static_assert(edges_match<in_types, S...>(), "G4: every edge joins two ports of the same domain");
+    static_assert(messages_match<in_types, S...>(),
+                  "G4: an edge joins two ports of one message type, when both have one");
+    static const std::vector<slot_factory> factories = factories_of<out_types>();
+    const std::vector<source> outs =
+        s.owner().fire(s, node, H::name, at, std::vector<source>{source_of(sources)...}, factories);
+    return values_of<out_types>(outs);
 }
 }  // namespace detail
 
@@ -610,29 +954,32 @@ auto fire(scope& s, const node<B>& n, const time_of& t, const S&... sources) {
 }
 
 /// A body's implementation of its composite's handler H: `f(scope&, [time_of,]
-/// value<D>...)`, one value per in port, returns std::tuple of the handler's
+/// value<X>...)`, one value per in port, returns std::tuple of the handler's
 /// out ports' values, in its order.
-template <fixed_string H, class B, class F>
-void on(body<B>& b, F f) {
+template <fixed_string H, class B, class G, class F>
+void on(body<B, G>& b, F f) {
     using h = handler_t<B, H>;
     using sig = typename B::signature;
-    using in_domains = typename detail::port_domains<sig, typename h::in>::type;
-    using out_domains = typename detail::port_domains<sig, typename h::out>::type;
-    using expected = decltype(detail::values_of<out_domains>(std::span<const Ref>{}));
-    const auto call = [f = std::move(f)](scope& s, [[maybe_unused]] const time_of* t, std::span<const Ref> in) {
-        auto args = detail::values_of<in_domains>(in);
-        if constexpr (h::timed) {
-            return std::apply([&](const auto&... v) { return f(s, *t, v...); }, args);
-        } else {
-            return std::apply([&](const auto&... v) { return f(s, v...); }, args);
-        }
-    };
+    using in_types = typename detail::port_values<sig, typename h::in>::type;
+    using out_types = typename detail::port_values<sig, typename h::out>::type;
+    using expected = decltype(detail::values_of<out_types>(std::span<const detail::source>{}));
+    const auto call =
+        [f = std::move(f)](scope& s, [[maybe_unused]] const time_of* t, std::span<const detail::source> in) {
+            auto args = detail::values_of<in_types>(in);
+            if constexpr (h::timed) {
+                return std::apply([&](const auto&... v) { return f(s, *t, v...); }, args);
+            } else {
+                return std::apply([&](const auto&... v) { return f(s, v...); }, args);
+            }
+        };
     static_assert(
-        std::is_same_v<std::invoke_result_t<decltype(call), scope&, const time_of*, std::span<const Ref>>, expected>,
-        "G4: a body's handler returns its composite handler's out ports, of their domains");
-    b.owner().add_body_handler(b.composite(), h::name, [call](scope& s, const time_of* t, std::span<const Ref> in) {
-        return detail::refs_of(call(s, t, in));
-    });
+        std::is_same_v<std::invoke_result_t<decltype(call), scope&, const time_of*, std::span<const detail::source>>,
+                       expected>,
+        "G4: a body's handler returns its composite handler's out ports, of their domains and message types");
+    b.owner().add_body_handler(
+        b.composite(), h::name, [call](scope& s, const time_of* t, std::span<const detail::source> in) {
+            return detail::sources_of(call(s, t, in));
+        });
 }
 
 }  // namespace branes::anatomy::flow

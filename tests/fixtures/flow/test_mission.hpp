@@ -23,7 +23,10 @@ struct Imu {};
 struct Marks {};
 struct Truth {};
 struct Estimate {};
-struct Limits {};
+struct Limits {
+    double ceiling = 0.0;
+    double rate = 0.0;
+};
 struct Alerts {};
 struct Command {};
 
@@ -226,11 +229,14 @@ struct Ports {
 inline Ports ports(fl::builder& g) {
     Ports p;
     p.imu = fl::input<Imu>(g, "imu");
-    p.frame = fl::input<CameraFrame>(g, "frame", {.trigger = "frame", .time = "header.t_mid", .sitl_only = false});
+    p.frame = fl::input<CameraFrame>(
+        g,
+        "frame",
+        {.trigger = "frame", .time = [](const CameraFrame& f) { return f.header.t_mid; }, .sitl_only = false});
     p.marks = fl::input<Marks>(g, "marks");
-    p.truth = fl::input<Truth>(g, "truth", {.trigger = "truth", .time = "", .sitl_only = true});
+    p.truth = fl::input<Truth>(g, "truth", {.trigger = "truth", .time = nullptr, .sitl_only = true});
     p.tick = g.tick("tick");
-    p.limits = fl::constant<Limits>(g, "limits", {.from = "limits"});
+    p.limits = fl::constant<Limits>(g, "limits", Limits{2.0, 1.0});
     p.estimate = fl::output<Estimate>(g, "estimate", p.tick);
     p.command = fl::output<Command>(g, "command", p.tick);
     return p;
@@ -277,7 +283,8 @@ inline void regions(fl::builder& g, const Ports& p, const Composites& c) {
     auto [estimate] = fl::fire<"estimate">(tick, c.estimator, fl::at(p.tick));
     auto [alerts] = fl::fire<"alerts">(tick, c.monitor, estimate);
     auto [command] = fl::fire<"step">(tick, c.controller, estimate, p.limits, alerts, fl::hold(p.marks));
-    auto [safe] = fl::fire<"filter">(tick, c.safety_filter, estimate, command, fl::project<"ceiling">(p.limits));
+    auto [safe] = fl::fire<"filter">(
+        tick, c.safety_filter, estimate, command, fl::project<"ceiling", &Limits::ceiling>(p.limits));
     g.produce(p.estimate, estimate);
     g.produce(p.command, safe);
 }

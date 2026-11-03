@@ -1,0 +1,16 @@
+# The field mission's body baseline: the null baseline, with its planner a
+# body of two operators, GoalPlanner and Smooth, which plan what GoalPlanner
+# alone does.
+name: field-body
+class: scoreboard
+composition:
+  controller: NullController
+  estimator: GroundTruthCore
+  planner: GoalPlanner
+graph:
+  estimator: GroundTruthCore
+  planner: GoalSmooth
+  daa_tracker: NullDaaTracker
+  controller: NullController
+  safety_filter: NullSafetyFilter
+  fc_bridge: NullFcBridge
