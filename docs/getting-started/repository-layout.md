@@ -2,12 +2,13 @@
 
 ```text
 anatomy/
+├── apps/         # the tools a mission's gates run: log_compare, two logs equal but for the header fields left out
 ├── cmake/        # deps, warnings, test registration (compile_all), composition and flow (a mission's baselines)
 ├── docs/         # the documents: the source of this site
 ├── docs-site/    # the Starlight site generated from docs/, published to GitHub Pages
 ├── glue/         # branes::anatomy_glue: adapters from reflex components to the slots
 ├── mobility/     # branes::anatomy_mobility: a roaming vehicle's contracts and their domains, profile, configs, slots, dump
-├── sdk/          # branes::anatomy (core): time, geometry, camera, domains and signatures, profile, slots, baseline, log, harness, util
+├── sdk/          # branes::anatomy (core): time, geometry, camera, domains and signatures, profile, slots, baseline, log and its comparison, harness, util
 ├── sim/          # branes::anatomy_mobility_sim: the closed-loop simulator on the reflex dynamics
 ├── tests/        # Catch2 tests, one executable per tests/<layer>/<name>.cpp; fixtures/ holds their data
 └── yaml/         # branes::anatomy_yaml: the YAML helpers for config loaders, anatomy's and a mission's

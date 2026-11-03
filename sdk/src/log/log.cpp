@@ -10,8 +10,6 @@ namespace {
 
 constexpr std::array<char, 8> kMagic = {'B', 'R', 'L', 'O', 'G', '\0', '\0', '\0'};
 constexpr std::size_t kRecordHeaderSize = 2 + 4 + 8;
-// A frame at 4K RGB is ~25 MB; anything far larger is a corrupt size field.
-constexpr std::uint32_t kMaxPayload = 256u * 1024u * 1024u;
 
 std::vector<std::byte> encode_header(const LogHeader& h) {
     ByteWriter w;

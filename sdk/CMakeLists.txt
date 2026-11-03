@@ -5,13 +5,14 @@
 # profile (compose/), the slot construction (slots/), the baseline config, the
 # replay log, and the harness (runner, replay, flight ticks, batch pool) as
 # headers, and compiles the baseline loader (yaml-cpp), the graph builder's
-# checks and the graph hash (flow/builder.hpp, flow/graph.hpp), the log, and
-# SHA-256.
+# checks and the graph hash (flow/builder.hpp, flow/graph.hpp), the log and
+# its comparison, and SHA-256.
 # A roaming vehicle's contracts are branes::anatomy_mobility (mobility/).
 
 add_library(branes_anatomy STATIC
     src/config/baseline.cpp
     src/flow/graph.cpp
+    src/log/compare.cpp
     src/log/log.cpp
     src/util/sha256.cpp
 )

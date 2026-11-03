@@ -34,6 +34,10 @@ namespace branes::anatomy::log {
 
 inline constexpr std::uint32_t kLogVersion = 2;  ///< 2: the reference channel
 
+/// The largest header or record payload a log may hold [bytes]. A frame at 4K
+/// RGB is ~25 MB; anything far larger is a corrupt size field.
+inline constexpr std::uint32_t kMaxPayload = 256u * 1024u * 1024u;
+
 /// Record channels. Inputs (< 16) are what the harness feeds the stack;
 /// outputs (≥ 16) are what the stack produced. Sim channels are inputs the
 /// SITL harness records for scoring and for SITL-only slots; the stack does not
