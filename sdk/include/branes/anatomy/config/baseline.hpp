@@ -28,11 +28,18 @@ namespace branes::anatomy::config {
 ///
 /// Invariants: name matches [a-z0-9-]+; composition names exactly the
 /// mission's slots, each with an implementation name [A-Za-z0-9_]+;
-/// parameters are scalar values.
+/// parameters are scalar values; baseline_class is empty, scoreboard or
+/// research; graph is empty or a YAML mapping.
+///
+/// A baseline may give its stack in both forms: the slots' `composition:`,
+/// and the domain flow's `class:` and `graph:` (anatomy docs/adr/0004, step 2).
+/// The graph is kept as YAML text here; flow::load_graph() reads and checks it.
 struct BaselineConfig {
     std::string name;
     std::map<std::string, std::string> composition;  ///< slot → implementation
     std::map<std::string, std::string> parameters;   ///< key → scalar value
+    std::string baseline_class;                      ///< `class:`; empty if absent
+    std::string graph;                               ///< `graph:`, as YAML text; empty if absent
 
     friend bool operator==(const BaselineConfig&, const BaselineConfig&) = default;
 };

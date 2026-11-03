@@ -1,0 +1,55 @@
+# A test mission's interface (docs/plan/flow-graph), for the graph loader's
+# tests: inputs at three rates, a SITL-only truth that no handler reads, a
+# constant, the tick, and four composites. The frame region reads the
+# estimate before the estimator takes the frame; the tick region holds the
+# marks, which fire a trigger of their own.
+mission: test
+profile: test::TestProfile
+external:
+  in:
+    imu:   { message: branes::anatomy::ImuSample, trigger: imu }
+    frame: { message: branes::anatomy::CameraFrame, trigger: frame, time: header.t_mid }
+    marks: { message: test::Marks, trigger: marks }
+    truth: { message: branes::anatomy::TruthState, trigger: truth, sitl_only: true }
+    tick:  { trigger: tick }
+  constant:
+    limits: { message: test::Limits, from: limits }
+  out:
+    estimate: { message: branes::anatomy::StateEstimate, region: tick, from: estimator.estimate }
+    command:  { message: branes::anatomy::ThrustRates, region: tick, from: safety_filter.safe_command }
+composites:
+  estimator:
+    signature: test::flow::estimator_signature
+    binding: test::flow::EstimatorBinding
+    handlers:
+      imu:      { in: [imu], state: update }
+      frame:    { in: [frame], state: update }
+      estimate: { out: [estimate], time: true, state: read }
+  monitor:
+    signature: test::flow::monitor_signature
+    binding: test::flow::MonitorBinding
+    handlers:
+      update: { in: [estimate], state: update }
+      alerts: { in: [estimate], out: [alerts], state: read }
+  controller:
+    signature: test::flow::controller_signature
+    binding: test::flow::ControllerBinding
+    handlers:
+      step: { in: [estimate, limits, alerts, marks], out: [command] }
+  safety_filter:
+    signature: test::flow::safety_filter_signature
+    binding: test::flow::SafetyFilterBinding
+    handlers:
+      filter: { in: [estimate, command, ceiling], out: [safe_command] }
+regions:
+  imu:
+    - estimator.imu: [imu]
+  frame:
+    - estimator.estimate@frame
+    - estimator.frame: [frame]
+    - monitor.update: [estimator.estimate]
+  tick:
+    - estimator.estimate@tick
+    - monitor.alerts: [estimator.estimate]
+    - controller.step: [estimator.estimate, limits, monitor.alerts, {from: marks, rate: hold}]
+    - safety_filter.filter: [estimator.estimate, controller.command, limits.ceiling]

@@ -1,0 +1,15 @@
+# A scoreboard baseline of the test mission: a body of one operator for each
+# composite. It keeps its slot form too.
+name: test-scoreboard
+class: scoreboard
+composition:
+  controller: PassController
+  estimator: TestEstimator
+  safety_filter: NullSafetyFilter
+graph:
+  estimator: TestEstimator
+  monitor: NullMonitor
+  controller: PassController
+  safety_filter: NullSafetyFilter
+parameters:
+  control_rate_hz: 100

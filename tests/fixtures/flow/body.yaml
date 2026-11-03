@@ -1,0 +1,23 @@
+# A scoreboard baseline of the test mission whose controller is a body of two
+# operators: Gain makes a setpoint, which Track follows.
+name: test-body
+class: scoreboard
+composition:
+  controller: PassController
+  estimator: TestEstimator
+  safety_filter: NullSafetyFilter
+graph:
+  estimator: TestEstimator
+  monitor: NullMonitor
+  controller:
+    operators:
+      gain: Gain
+      track: Track
+    handlers:
+      step:
+        fire:
+          - gain.apply: [estimate, limits]
+          - track.step: [estimate, gain.setpoint, alerts, marks]
+        out:
+          command: track.command
+  safety_filter: NullSafetyFilter

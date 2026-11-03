@@ -16,7 +16,7 @@ result<BaselineConfig, ConfigError>
 parse_baseline(std::string_view yaml, std::string_view origin, std::span<const std::string_view> slots) {
     return guarded<BaselineConfig>(origin, [&]() -> BaselineConfig {
         const YAML::Node root = parse_root(yaml);
-        only_keys(root, "", {"name", "composition", "parameters"});
+        only_keys(root, "", {"name", "class", "composition", "graph", "parameters"});
         BaselineConfig b;
         b.name = get_string(root, "", "name");
         require(!b.name.empty() &&
@@ -47,6 +47,17 @@ parse_baseline(std::string_view yaml, std::string_view origin, std::span<const s
                 }
             }
         }
+
+        if (root["class"]) {
+            b.baseline_class = get_string(root, "", "class");
+            require(b.baseline_class == "scoreboard" || b.baseline_class == "research",
+                    "class",
+                    "must be scoreboard or research");
+        }
+        if (const YAML::Node graph = root["graph"]) {
+            require(graph.IsMap(), "graph", "expected a mapping");
+            b.graph = YAML::Dump(graph);
+        }
         return b;
     });
 }
@@ -61,11 +72,17 @@ std::string emit_baseline(const BaselineConfig& b) {
     YAML::Emitter out;
     out << YAML::BeginMap;
     out << YAML::Key << "name" << YAML::Value << b.name;
+    if (!b.baseline_class.empty()) {
+        out << YAML::Key << "class" << YAML::Value << b.baseline_class;
+    }
     out << YAML::Key << "composition" << YAML::Value << YAML::BeginMap;
     for (const auto& [slot, impl] : b.composition) {
         out << YAML::Key << slot << YAML::Value << impl;
     }
     out << YAML::EndMap;
+    if (!b.graph.empty()) {
+        out << YAML::Key << "graph" << YAML::Value << YAML::Load(b.graph);
+    }
     out << YAML::Key << "parameters" << YAML::Value << YAML::BeginMap;
     for (const auto& [key, value] : b.parameters) {
         out << YAML::Key << key << YAML::Value << value;

@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 issue: branes-ai/anatomy#47
 ---
 # Plan: the graph format, the generator and the baseline classes (ADR 0004, step 2)
@@ -30,56 +30,72 @@ A mission's stack is a graph of **operators**. Each operator is fired by **handl
 
 ### The mission interface
 
-Each mission has one interface file, `mission/interface.yaml`. It names C++ types and bindings as strings, and the generated code checks them (G4, below).
+Each mission has one interface file, `mission/interface.yaml`. It names C++ types and bindings as strings, and the generated code checks them (G4, below). Scout's would read:
 
 ```yaml
 mission: scout
 profile: branes::scout::ScoutProfile          # the harness contract, unchanged
 external:                                     # the external ports
   in:
-    imu:       { message: branes::anatomy::ImuSample,       trigger: imu }
-    camera:    { message: branes::anatomy::CameraFrame,     trigger: frame, time: header.t_mid }
+    imu:       { message: branes::anatomy::ImuSample,          trigger: imu }
+    camera:    { message: branes::anatomy::CameraFrame,        trigger: frame, time: header.t_mid }
     obstacles: { message: branes::scout::ObstacleObservations, trigger: obstacles }
-    truth:     { message: branes::anatomy::TruthState,      trigger: truth, sitl_only: true }
-    tick:      { trigger: tick }                            # carries only its time
+    truth:     { message: branes::anatomy::TruthState,         trigger: truth, sitl_only: true }
+    tick:      { trigger: tick }                               # carries only its time
   constant:                                   # fixed when the stack is built
     field:      { message: branes::scout::Field, from: field }
     detections: { message: branes::anatomy::IntruderDetections }   # empty: no producer yet
   out:
-    estimate:  { message: branes::anatomy::StateEstimate, region: tick }
-    reference: { message: branes::anatomy::Reference,     region: tick }
-    command:   { message: branes::anatomy::ThrustRates,   region: tick }
+    estimate:  { message: branes::anatomy::StateEstimate, region: tick, from: estimator.estimate }
+    reference: { message: branes::anatomy::Reference,     region: tick, from: planner.reference }
+    command:   { message: branes::anatomy::ThrustRates,   region: tick, from: safety_filter.safe_command }
 composites:                                   # in the order the stack builds them
-  estimator:     { signature: branes::scout::flow::estimator_signature,     binding: branes::scout::flow::EstimatorBinding }
-  planner:       { signature: branes::scout::flow::planner_signature,       binding: branes::scout::flow::PlannerBinding }
-  controller:    { signature: branes::anatomy::flow::controller_signature,  binding: branes::anatomy::flow::ControllerBinding }
-  safety_filter: { signature: branes::anatomy::flow::safety_filter_signature, binding: branes::anatomy::flow::SafetyFilterBinding }
-  daa_tracker:   { signature: branes::anatomy::flow::daa_tracker_signature, binding: branes::anatomy::flow::DaaTrackerBinding }
-  fc_bridge:     { signature: branes::anatomy::flow::fc_bridge_signature,   binding: branes::anatomy::flow::FcBridgeBinding }
-regions:                                      # each fired by one trigger; a handler list, in dependence order
-  imu:       [estimator.imu <- imu]
-  frame:     [estimator.estimate@camera, estimator.frame <- camera, daa_tracker.update <- (detections, estimator.estimate@camera)]
-  obstacles: [estimator.obstacles <- obstacles]
-  truth:     [estimator.truth <- truth]
+  estimator:
+    signature: branes::scout::flow::estimator_signature
+    binding: branes::scout::flow::EstimatorBinding
+    handlers:
+      imu:       { in: [imu], state: update }
+      frame:     { in: [camera], state: update }
+      obstacles: { in: [obstacles], state: update }
+      truth:     { in: [truth], state: update }
+      estimate:  { out: [estimate], time: true, state: read }
+  daa_tracker:
+    signature: branes::anatomy::flow::daa_tracker_signature
+    binding: branes::anatomy::flow::DaaTrackerBinding
+    handlers:
+      update:    { in: [detections, estimate], state: update }
+      conflicts: { in: [estimate], out: [conflicts], state: read }
+  # planner, controller, safety_filter and fc_bridge alike
+regions:                                      # each a trigger, its firings in the declared order
+  imu:
+    - estimator.imu: [imu]
+  frame:
+    - estimator.estimate@camera
+    - estimator.frame: [camera]
+    - daa_tracker.update: [detections, estimator.estimate]
   tick:
     - estimator.estimate@tick
-    - planner.plan <- (field, obstacles: hold, estimator.estimate)
-    - daa_tracker.conflicts <- estimator.estimate
-    - controller.step <- (estimator.estimate, planner.reference, daa_tracker.conflicts)
-    - safety_filter.filter <- (estimator.estimate, controller.command, daa_tracker.conflicts, field.geofence)
-    - fc_bridge.send <- (safety_filter.safe_command, tick)
+    - planner.plan: [field, {from: obstacles, rate: hold}, estimator.estimate]
+    - daa_tracker.conflicts: [estimator.estimate]
+    - controller.step: [estimator.estimate, planner.reference, daa_tracker.conflicts]
+    - safety_filter.filter: [estimator.estimate, controller.command, daa_tracker.conflicts, field.geofence]
+    - fc_bridge.send: [safety_filter.safe_command, tick]
+  # obstacles and truth alike
 ```
 
-The handler syntax above is a sketch. Its exact grammar is settled in 2a, below. What it must express:
+The grammar, as 2a settled it:
 
-- **A handler** is one firing of a composite: `estimator.frame` takes the camera frame, and `estimator.estimate@camera` reads the estimate at the frame's time.
-- **An edge** joins a source (an external port, a constant, a field of one, `field.geofence`, or another handler's out port) to a handler's in port.
-- **`hold`** marks an edge between regions that run at different rates: the planner reads the latest obstacles seen. Step 2 implements hold only. `accumulate` and `queue` are refused until a mission needs them.
-- **The order of a region's handlers** is a topological order of its flow edges. A read of an operator's state before a handler that updates it is declared by putting it first: the estimate at the frame's time is read before the estimator takes the frame, and the DAA gets that prior, as `Stack::on_frame` does today. Between independent handlers, the order is the order of declaration. So the generated order is fixed, and today's `Stack` order can be written down exactly.
+- **A composite declares its handlers.** Each handler is one function of the composite's binding. It names its in and out ports, which are port names of the signature, in the binding's order; whether it takes a time (`time: true`); and what it does with the operator's state (`state: read` or `update`, ADR 0004, decision 4). The generator can't see C++, so it checks the graph on these names, and the compiler checks the names and their domains against the signature (G4).
+- **A region is a trigger,** and lists its **firings** in the order they run. A firing is `<composite>.<handler>`, with one source per in port: `- estimator.frame: [camera]`. A handler that takes a time names the input whose time it takes: `estimator.estimate@camera` reads the estimate at the frame's time (`time: header.t_mid`).
+- **A source** is an input, a constant, or another firing's out port: `camera`, `field`, `estimator.estimate`. It may project a record's field: `field.geofence`. Composites and external ports share one namespace, so a source names one thing.
+- **A source written in another region** carries a rate rule: `{from: obstacles, rate: hold}`, and the planner reads the latest obstacles seen. Step 2 implements `hold` only. `accumulate` and `queue` are refused until a mission needs them.
+- **The order of a region's firings** is a topological order of its flow edges: a source written in the region is written by a firing declared before its reader. A read of state before an update is declared by putting it first. The estimate at the frame's time is read before the estimator takes the frame, and the DAA gets that prior, as `Stack::on_frame` does today. Between independent firings, the order is the order of declaration. So the generated order is fixed, and today's `Stack` order can be written down exactly.
+
+The structure is YAML rather than a line syntax such as `a <- (x, y)`, since YAML splits a flow list on its commas and reads `x: hold` as a mapping.
 
 ### The baseline file
 
-The file gains two keys, `class` and `graph`. A slot baseline keeps its `composition:` block, and the loader accepts all three, so in step 2 one file holds both forms of a baseline.
+The file gains two keys, `class` and `graph`. A slot baseline keeps its `composition:` block, and the loader accepts all three, so in step 2 one file holds both forms of a baseline. The loader keeps the graph as text, and `flow::load_graph()` reads and checks it against the interface and the registry.
 
 ```yaml
 name: s0-gt-pid
@@ -95,17 +111,30 @@ graph:
 parameters: { ... }
 ```
 
-**A scoreboard baseline** gives a body for each composite. A body is one operator, as above, or a subgraph of operators whose external ports are the composite's ports. **A research baseline** gives `operators:` and `regions:` between the mission's external ports, in the interface's grammar. Step 2 builds the research path and tests it on a test mission in anatomy. scout-drone ships no research baseline yet.
+**A scoreboard baseline** gives a body for each composite. A body is one operator, as above, or a subgraph of operators whose external ports are the composite's ports. A subgraph gives, for each of the composite's handlers, the firings that implement it and the producer of each of its out ports. A firing's source is one of the handler's in ports, or an earlier firing's out port:
+
+```yaml
+  controller:
+    operators: { outer: PositionLoop, inner: RateLoop }
+    handlers:
+      step:
+        fire:
+          - outer.step: [estimate, reference]
+          - inner.step: [estimate, outer.rates, conflicts]
+        out: { command: inner.command }
+```
+
+**A research baseline** gives `operators:`, `regions:` and `out:` between the mission's external ports, in the interface's grammar, with operator instances in place of composites. Step 2 builds the research path and tests it on a test mission in anatomy. scout-drone ships no research baseline yet.
 
 ### Operators and bindings
 
 - **An operator** is a C++ class registered under a name with its header and type, as `composition_register_impl()` does today. It is registered in one of two ways:
-  - `flow_register_operator(<registry> <Name> HEADER <h> TYPE <t> COMPOSITE <c>)`: the operator fills composite `c`, and takes its signature and binding. A single-operator body binds its ports by name to the composite's.
-  - `flow_register_operator(<registry> <Name> HEADER <h> TYPE <t> SIGNATURE <s> BINDING <b>)`: an operator of its own, with its own signature (`signature_of`, step 1) and binding. It can be placed in a research graph, or in a scoreboard body that has more than one operator.
+  - `flow_register_operator(<registry> <Name> HEADER <h> TYPE <t> COMPOSITE <c>)`: the operator fills composite `c`, and takes its signature, binding and handlers. A single-operator body binds its ports by name to the composite's.
+  - `flow_register_operator(<registry> <Name> HEADER <h> TYPE <t> SIGNATURE <s> BINDING <b> HANDLERS <...>)`: an operator of its own, with its own signature (`signature_of`, step 1), binding and handlers. It can be placed in a research graph, or in a scoreboard body that has more than one operator.
 
-  A research graph may use operators of either kind. An operator that fills a composite keeps that composite's signature and binding wherever it is placed.
+  A research graph may use operators of either kind. An operator that fills a composite keeps that composite's signature and binding wherever it is placed. The registry reaches the generator as a YAML file (`operators:`, one entry per operator), which `flow::load_registry()` reads.
 - **A binding** is the CPU calling convention of a composite's operators. It is a C++ struct with one static function per handler, for example `EstimatorBinding::frame(est, f)` calls `est.process_frame(f)`. Every implementation of a slot concept has the same methods, so a binding is written once per composite, from its slot concept. The slot concepts survive as calling conventions until step 5.
-- **State.** A binding declares which of its handlers read and which update the operator's state (ADR 0004, decision 4). A composite declares no state (step 1); an operator does here, through its binding, so the generator can check that a read before an update is declared in that order.
+- **State.** A handler declares whether it reads or updates its operator's state (ADR 0004, decision 4). A composite declares no state domain (step 1); its handlers declare their state role here, so the generator can check that each read is ordered before or after the update.
 
 ### The generator
 
@@ -117,17 +146,17 @@ parameters: { ... }
 
 ## Invariants
 
-The generator checks G1–G3 and G5–G9 and refuses a graph that breaks any of them, with a message that names the file, the key and the invariant. G4 is a `static_assert` in the generated header.
+The loader checks G1–G3 and G5–G8 and refuses a graph that breaks any of them, with a message that names the file, the key and the invariant. G4 is a `static_assert` in the generated header. G9 is derived, not refused: the checked graph says whether it is SITL-only.
 
 | Id | Invariant |
 |---|---|
-| G1 | names are non-empty, `[a-z_][a-z0-9_]*`, and distinct per kind (composites, operators, regions, ports) |
-| G2 | every operator is registered; one placed as a composite's single-operator body fills that composite; and its binding has every handler named |
+| G1 | names are non-empty, `[a-z_][a-z0-9_]*`, and distinct per kind (composites, operators, regions, ports); a graph's nodes and its external ports share one namespace |
+| G2 | every operator is registered; one placed as a composite's single-operator body fills that composite; and every firing names a handler its node declares (its binding has the function: the compiler, 2b) |
 | G3 | every in port of every handler has exactly one source, and every source exists; every external out port has one producer |
 | G4 | every edge joins two ports of the same domain (`port_t` equality); a projection `x.f` is `field_t` of `x`'s record |
-| G5 | within a region, the handlers' flow edges are acyclic, and the declared order is a topological order of them; a read of state before an update in one region is declared in that order |
-| G6 | every handler belongs to exactly one region, and every region has one trigger the interface declares |
-| G7 | an edge between regions has a rate rule, and step 2 accepts `hold` only |
+| G5 | within a region, the handlers' flow edges are acyclic, and the declared order is a topological order of them; a region updates a node's state at most once, so each read of it is declared before or after the update |
+| G6 | every firing belongs to exactly one region, every region has one trigger the interface declares, a firing takes its time from an input of that trigger, and every handler of the interface's composites fires |
+| G7 | an edge between regions has a rate rule, and step 2 accepts `hold` only; an edge within a region, or from a constant, has none |
 | G8 | the baseline declares its class; a scoreboard baseline keeps the interface's composites, their ports and their connections, and gives each a body |
 | G9 | a graph that reads a `sitl_only` port is SITL-only, and says so in its header |
 
@@ -136,11 +165,11 @@ The generator checks G1–G3 and G5–G9 and refuses a graph that breaks any of 
 Step 2 is four PRs. Each is accepted on its own criteria, and the step on all of them.
 
 **2a, anatomy: the graph description.**
-1. `flow/graph.hpp`: the graph as a C++ value (composites, operators, handlers, edges, regions, triggers, rate rules), with a loader for the mission interface and for a baseline's `class:` and `graph:`, and the checks G1–G3 and G5–G9.
+1. `flow/graph.hpp`: the graph as a C++ value (composites, operators, handlers, edges, regions, triggers, rate rules), with a loader for the mission interface, the operator registry, and a baseline's `class:` and `graph:`, and the checks G1–G3 and G5–G9. A checked graph is flattened to operator firings, a body's firings in place of its composite's, in the order the regions run them.
 2. The baseline loader accepts `class:` and `graph:`, and every existing baseline file still loads, unchanged.
 3. The canonical form and the graph hash, with a round-trip test.
-4. A test for each invariant G1–G9: a file that breaks it, and the message expected.
-5. `domain_of<CameraFrame>`. The image is a run-time-sized buffer with no bound in the data, so in step 2 the frame is a scalar of an opaque element type. Bounded image extents, bound from the vehicle file, come with the first operator that reads pixels.
+4. A test for each invariant G1–G3 and G5–G8: a file that breaks it, and the message expected. G9 is tested by value: a graph that reads a SITL-only input is SITL-only, and one that doesn't isn't. G4 is tested with the generator (2b).
+5. `domain_of<CameraFrame>` (`flow/domains.hpp`). The image is a run-time-sized buffer with no bound in the data, so in step 2 the frame is a scalar of an opaque element type. Bounded image extents, bound from the vehicle file, come with the first operator that reads pixels.
 
 **2b, anatomy: the generator.**
 1. `anatomy_flowgen` and `flow_add_baseline()` (cmake/flow.cmake), which generates the header and its targets, in the way `composition_generate()` does now.
@@ -163,9 +192,11 @@ Step 2 is four PRs. Each is accepted on its own criteria, and the step on all of
 
 **In every PR:** GCC and Clang with no warnings, debug and release, and every test passing; MSVC in CI.
 
-## Design choices to confirm
+## Design choices
 
-1. **The generator is a C++ host tool run at build time, not CMake at configure time.** ADR 0004, decision 2 says configure time. A graph needs a real YAML parser, cycle checks and a topological order, and the hash should be computed by one implementation. CMake can do the first two only with a hand-written line parser, as today's flat `composition:` block does, and it can't share code with the startup loader. The cost is a host tool, which matters when anatomy is cross-compiled. If this is agreed, 2a amends decision 2 to "checks the graph before the stack compiles".
+All six were confirmed on 2026-11-02.
+
+1. **The generator is a C++ host tool run at build time, not CMake at configure time.** ADR 0004, decision 2 says configure time. A graph needs a real YAML parser, cycle checks and a topological order, and the hash should be computed by one implementation. CMake can do the first two only with a hand-written line parser, as today's flat `composition:` block does, and it can't share code with the startup loader. The cost is a host tool, which matters when anatomy is cross-compiled. Agreed: 2a amends decision 2 to "checks the graph before the stack compiles".
 2. **The domains are checked by the C++ compiler, in the generated header.** Domains are C++ types (step 1), and the tool can't see them. The alternative is to describe the domains again in YAML, which the step 1 plan ruled out by writing each message's domain once.
 3. **The slot concepts become the bindings, the CPU calling convention, until step 5.** Every existing implementation works unchanged. The alternative is to rewrite each implementation as an operator with one method per port, which would change code that the equality criterion compares against.
 4. **The region order is declared and checked, not inferred.** The topological order alone doesn't fix the order of independent handlers, or the read of the estimate before the frame update. Declaring the order makes today's order exact and replayable.
@@ -183,8 +214,8 @@ Step 2 is four PRs. Each is accepted on its own criteria, and the step on all of
 
 | Step | PR | State |
 |---|---|---|
-| This plan | [#48](https://github.com/branes-ai/anatomy/pull/48) | open |
-| 2a: the graph description | | not started |
+| This plan | [#48](https://github.com/branes-ai/anatomy/pull/48) | merged |
+| 2a: the graph description | | in progress |
 | 2b: the generator | | not started |
 | 2c: scout-drone's graphs | | not started |
 | 2d: docs | | not started |

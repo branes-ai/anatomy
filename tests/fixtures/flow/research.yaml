@@ -1,0 +1,29 @@
+# A research baseline of the test mission: a graph of operators between the
+# interface's external ports, two of them operators of their own.
+name: test-research
+class: research
+composition:
+  controller: PassController
+  estimator: TestEstimator
+  safety_filter: NullSafetyFilter
+graph:
+  operators:
+    estimator: TestEstimator
+    monitor: NullMonitor
+    gain: Gain
+    track: Track
+  regions:
+    imu:
+      - estimator.imu: [imu]
+    frame:
+      - estimator.estimate@frame
+      - estimator.frame: [frame]
+      - monitor.update: [estimator.estimate]
+    tick:
+      - estimator.estimate@tick
+      - monitor.alerts: [estimator.estimate]
+      - gain.apply: [estimator.estimate, limits]
+      - track.step: [estimator.estimate, gain.setpoint, monitor.alerts, {from: marks, rate: hold}]
+  out:
+    estimate: estimator.estimate
+    command: track.command
