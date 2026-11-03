@@ -253,4 +253,4 @@ Choices 1 to 7 were confirmed on 2026-11-02, after 2a's first version described 
 | 2c: anatomy's log comparison | [#54](https://github.com/branes-ai/anatomy/pull/54) | merged |
 | 2c: scout-drone's graphs | [scout-drone#25](https://github.com/branes-ai/scout-drone/pull/25) | merged |
 | racing-drone unchanged, on v0.9.0 | branch `check/anatomy-0.9.0`, not merged | passed: every test, and the outputs of `tools/compare_outputs.sh` byte-identical to main's |
-| 2d: docs | [#55](https://github.com/branes-ai/anatomy/pull/55) | open |
+| 2d: docs | [#55](https://github.com/branes-ai/anatomy/pull/55), [scout-drone#27](https://github.com/branes-ai/scout-drone/pull/27) | merged |
