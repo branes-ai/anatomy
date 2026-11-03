@@ -29,6 +29,32 @@ foreach(source ${SIM_SRC})
     target_compile_definitions(${name} PRIVATE ANATOMY_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 endforeach()
 
+# The field mission's graph baselines (docs/plan/flow-graph, 2b): its
+# operators, bodies and research graph, registered, and a header per baseline
+# file naming what fills its graph (cmake/flow.cmake), for the CPU stack's
+# test (sim/flow_stack.cpp).
+include(${PROJECT_SOURCE_DIR}/cmake/flow.cmake)
+set(field_dir ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/flow/field)
+set(field_graph flow/field/field_graph.hpp)
+flow_register_operator(field GroundTruthCore HEADER branes/anatomy/mobility/slots/ground_truth_core.hpp
+    TYPE branes::anatomy::GroundTruthCore BINDING field::EstimatorBinding)
+flow_register_operator(field GoalPlanner HEADER ${field_graph} TYPE field::GoalPlanner BINDING field::PlannerBinding)
+flow_register_body(field GoalSmooth HEADER ${field_graph} TYPE field::GoalSmooth)
+flow_register_graph(field Direct HEADER ${field_graph} TYPE field::DirectGraph)
+foreach(null IN ITEMS NullController NullSafetyFilter NullDaaTracker NullFcBridge)
+    string(REPLACE "Null" "" composite ${null})
+    flow_register_operator(field ${null} HEADER branes/anatomy/mobility/slots/neutral_nulls.hpp
+        TYPE branes::anatomy::${null} BINDING branes::anatomy::flow::${composite}Binding)
+endforeach()
+flow_register_operator(field CascadedPid HEADER branes/anatomy/glue/cascaded_pid.hpp
+    TYPE branes::anatomy::glue::CascadedPid BINDING branes::anatomy::flow::ControllerBinding)
+foreach(baseline IN ITEMS field-null field-pid field-body field-research)
+    flow_add_baseline(field ${baseline} FILE ${field_dir}/${baseline}.yaml TEMPLATE ${field_dir}/baseline.hpp.in
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/flow/field/${baseline}.hpp)
+endforeach()
+target_include_directories(flow_stack PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/fixtures ${CMAKE_CURRENT_BINARY_DIR}/generated)
+
 # ── Scalar types ───────────────────────────────────────────────────────────
 # The casts and the contracts in every type of the precision sweep
 # (sim/sweep_types.hpp); these tests link Universal.
@@ -88,7 +114,10 @@ set(flow_compile_fail
     "g3_time|G3: a handler that takes a time is fired at"
     "g3_no_time|G3: a handler that takes no time is not fired at an input"
     "g4_edge|G4: every edge joins two ports of the same domain"
-    "g4_projection|field_t: R is a record"
+    "g4_projection|field_t: the record has no field of that name"
+    "g4_member|a projection of a message names its member"
+    "g2_call|G2: a handler's call\\(\\) takes its operator"
+    "stack_message|the CPU stack runs a handler whose ports carry message types"
     "g4_output|G4: every edge joins two ports of the same domain"
     "g4_body|G4: a body's handler returns its composite handler's out ports")
 foreach(entry IN LISTS flow_compile_fail)

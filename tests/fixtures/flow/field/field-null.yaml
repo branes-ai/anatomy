@@ -1,0 +1,15 @@
+# The field mission's null baseline: the truth as the estimate, the goal as
+# the reference, and the neutral nulls. The slot form names the same slots.
+name: field-null
+class: scoreboard
+composition:
+  controller: NullController
+  estimator: GroundTruthCore
+  planner: GoalPlanner
+graph:
+  estimator: GroundTruthCore
+  planner: GoalPlanner
+  daa_tracker: NullDaaTracker
+  controller: NullController
+  safety_filter: NullSafetyFilter
+  fc_bridge: NullFcBridge

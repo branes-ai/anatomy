@@ -9,7 +9,8 @@
 /// connect when their domains are the same type.
 ///
 /// Model:
-///   port<Name, D, Dir>          : a named domain or record, read, written, or both
+///   port<Name, D, Dir>          : a named domain or record, read, written, or both;
+///                                 D may be a message type, whose domain_of it holds
 ///   state<Name, D>              : a named domain or record kept between firings
 ///   index_space<Extents...>     : a leaf's computational domain; no_index_space otherwise
 ///   signature<Ports, States, S> : ports<...>, states<...>, and the index space
@@ -48,11 +49,47 @@ struct index_space_tag {};
 
 enum class direction : std::uint8_t { in, out, inout };
 
-/// A named domain or record that an operator reads (in), writes (out), or both.
-template <fixed_string Name, class D, direction Dir>
+namespace detail {
+template <class X>
+concept has_domain = requires { typename domain_of<X>::type; };
+
+/// A port's or a value's data: X if X is a domain or a record, else X's domain.
+template <class X>
+struct data_of {
+    using type = X;
+};
+template <class X>
+    requires(!is_data_v<X> && has_domain<X>)
+struct data_of<X> {
+    using type = domain_of_t<X>;
+};
+/// An element type with no domain_of of its own, such as a record's double: a scalar.
+template <class X>
+    requires(!is_data_v<X> && !has_domain<X> && is_element_v<X>)
+struct data_of<X> {
+    using type = scalar<X>;
+};
+}  // namespace detail
+
+/// A domain or a record; or a message type with a domain_of, or an element
+/// type (a scalar of it), which a port carries to run on the CPU (anatomy
+/// docs/plan/flow-graph, 2b).
+template <class X>
+inline constexpr bool is_port_data_v = is_data_v<X> || detail::has_domain<X> || is_element_v<X>;
+
+/// X's domain or record: X itself, or domain_of_t<X> for a message type.
+template <class X>
+using data_t = typename detail::data_of<X>::type;
+
+/// A named domain or record that an operator reads (in), writes (out), or
+/// both. It may be given as the message type that carries it, whose
+/// domain_of is the port's domain.
+template <fixed_string Name, class X, direction Dir>
 struct port : detail::port_tag {
-    static_assert(is_data_v<D>, "S1: each port holds a domain or a record");
-    using type = D;
+    static_assert(is_port_data_v<X>, "S1: each port holds a domain or a record, or a message type with a domain");
+    using type = data_t<X>;
+    /// The message type the port carries; void if it was given as a domain.
+    using message = std::conditional_t<is_data_v<X>, void, X>;
     static constexpr std::string_view name = Name.view();
     static constexpr direction dir = Dir;
 };
@@ -169,6 +206,10 @@ struct checked_signature {
 /// A port's domain or record.
 template <class Sig, fixed_string Name>
 using port_t = typename detail::find_port<Sig, Name>::type::type;
+
+/// A port's message type: void if the port was given as a domain.
+template <class Sig, fixed_string Name>
+using message_t = typename detail::find_port<Sig, Name>::type::message;
 
 /// A port's direction.
 template <class Sig, fixed_string Name>
