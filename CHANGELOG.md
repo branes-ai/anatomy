@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.1](https://github.com/branes-ai/anatomy/compare/v0.9.0...v0.9.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* **build:** fetch a moved pin in an existing build tree ([#57](https://github.com/branes-ai/anatomy/issues/57)) ([e2eb4f0](https://github.com/branes-ai/anatomy/commit/e2eb4f0b8155f638a0f98c3f976f696a93c0ef49))
+
+
+### Documentation
+
+* **adr:** mark adr 0004 step 2 complete ([#55](https://github.com/branes-ai/anatomy/issues/55)) ([5d92ce7](https://github.com/branes-ai/anatomy/commit/5d92ce767145ab9d73ce60de7aa4dd79ef1930df))
+
 ## [0.9.0](https://github.com/branes-ai/anatomy/compare/v0.8.0...v0.9.0) (2026-11-03)
 
 
