@@ -215,7 +215,7 @@ All six were confirmed on 2026-11-02.
 | Step | PR | State |
 |---|---|---|
 | This plan | [#48](https://github.com/branes-ai/anatomy/pull/48) | merged |
-| 2a: the graph description | | in progress |
+| 2a: the graph description | [#50](https://github.com/branes-ai/anatomy/pull/50) | open |
 | 2b: the generator | | not started |
 | 2c: scout-drone's graphs | | not started |
 | 2d: docs | | not started |
