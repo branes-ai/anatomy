@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/branes-ai/anatomy/compare/v0.7.1...v0.7.2) (2026-11-02)
+
+
+### Documentation
+
+* **plan:** plan adr 0004 step 2, the graph and the generator ([#48](https://github.com/branes-ai/anatomy/issues/48)) ([4b86d98](https://github.com/branes-ai/anatomy/commit/4b86d98d08b21bf55a0bd15f0699c60cd0080b30)), closes [#47](https://github.com/branes-ai/anatomy/issues/47)
+
 ## [0.7.1](https://github.com/branes-ai/anatomy/compare/v0.7.0...v0.7.1) (2026-11-02)
 
 
