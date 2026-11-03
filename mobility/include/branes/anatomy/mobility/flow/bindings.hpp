@@ -68,7 +68,7 @@ struct DaaTrackerBinding {
         }
     };
     struct conflicts : handler<"conflicts", ins<"estimate">, outs<"conflicts">, state_role::read> {
-        static ConflictSet<T> call(auto& daa, const StateEstimate<T>& x) {
+        static ConflictSet<T> call(const auto& daa, const StateEstimate<T>& x) {
             return daa.conflicts(x);
         }
     };

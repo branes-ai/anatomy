@@ -234,3 +234,42 @@ TEST_CASE("flow stack: an operator that can't be built is refused, with its erro
     REQUIRE_FALSE(st);
     CHECK(st.error().rfind("field: controller: the operator could not be built: ", 0) == 0);
 }
+
+TEST_CASE("flow stack: a builder builds one stack, which owns its operators", "[flow][stack]") {
+    const Setup s = setup("field-null");
+    const field::Context ctx = s.context();
+    flow::stack_builder<field::Context> g{"field", flow::baseline_class::scoreboard, ctx};
+    (void)field::describe<field::baselines::field_null>(g, s.world);
+    auto& builder = static_cast<flow::builder&>(g);
+    REQUIRE(std::move(builder).build_stack());
+    const auto again = std::move(builder).build_stack();
+    REQUIRE_FALSE(again);
+    CHECK(again.error().message == "a builder builds one stack, which owns its operators");
+}
+
+TEST_CASE("flow stack: a source that is no builder's is refused, not run", "[flow][stack]") {
+    namespace fl = branes::anatomy::flow;
+    const Setup s = setup("field-research");
+    const field::Context ctx = s.context();
+    fl::stack_builder<field::Context> g{"field", fl::baseline_class::research, ctx};
+    const field::Ports<double> p = field::ports<double>(g, s.world);
+    const auto est =
+        fl::instance<fl::registered<"GroundTruthCore", GroundTruthCore<double>, field::EstimatorBinding<double>>>(
+            g, "estimator");
+    const auto direct =
+        fl::instance<fl::registered<"Direct", field::Direct<double>, field::DirectBinding<double>>>(g, "direct");
+    fl::scope imu = g.region(p.imu);
+    fl::fire<"imu">(imu, est, fl::hold(fl::value<ImuSample<double>>{}));  // made by hand: no slot
+    fl::scope truth = g.region(p.truth);
+    fl::fire<"truth">(truth, est, p.truth);
+    fl::scope tick = g.region(p.tick);
+    auto [x] = fl::fire<"estimate">(tick, est, fl::at(p.tick));
+    auto [reference, command] = fl::fire<"step">(tick, direct, p.field, x);
+    g.produce(p.estimate, x);
+    g.produce(p.reference, reference);
+    g.produce(p.command, command);
+    const auto st = std::move(g).build_stack();
+    REQUIRE_FALSE(st);
+    CHECK(st.error().key == "imu[0][0]");
+    CHECK(st.error().message == "the CPU stack has no value for the source: it is no builder's");
+}

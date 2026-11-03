@@ -454,7 +454,7 @@ result<Graph, config::ConfigError> builder::build() const {
     return g;
 }
 
-result<stack, config::ConfigError> builder::build_stack() const {
+result<stack, config::ConfigError> builder::build_stack() && {
     auto g = build();
     if (!g) {
         return g.error();
@@ -462,6 +462,9 @@ result<stack, config::ConfigError> builder::build_stack() const {
     if (!runs_) {
         return config::ConfigError{
             graph_.mission, "", "a stack is built by a stack_builder, which builds the operators from a context"};
+    }
+    if (stacked_) {
+        return config::ConfigError{graph_.mission, "", "a builder builds one stack, which owns its operators"};
     }
     const auto resolve = [&](const detail::source& src) -> const void* {
         if (src.slot == detail::no_slot) {
@@ -474,8 +477,6 @@ result<stack, config::ConfigError> builder::build_stack() const {
         return p;
     };
     stack st;
-    st.slots_ = slots_;
-    st.operators_ = operators_;
     for (const input_rec& in : inputs_) {
         std::size_t region = detail::no_slot;
         for (std::size_t r = 0; r < g->regions.size(); ++r) {
@@ -495,8 +496,14 @@ result<stack, config::ConfigError> builder::build_stack() const {
                 return config::ConfigError{graph_.mission, key, "the CPU stack has no operator to fire"};
             }
             stack::firing run{f.thunk, op, {}, {}, f.at};
-            for (const detail::source& src : f.in) {
-                run.in.push_back(resolve(src));
+            for (std::size_t k = 0; k < f.in.size(); ++k) {
+                const void* in = resolve(f.in[k]);
+                if (in == nullptr) {
+                    return config::ConfigError{graph_.mission,
+                                               key + "[" + std::to_string(k) + "]",
+                                               "the CPU stack has no value for the source: it is no builder's"};
+                }
+                run.in.push_back(in);
             }
             for (const std::size_t slot : f.out) {
                 run.out.push_back(slots_[slot].get());
@@ -506,8 +513,17 @@ result<stack, config::ConfigError> builder::build_stack() const {
         st.regions_.push_back(std::move(region));
     }
     for (const output_rec& o : outputs_) {
-        st.outputs_.push_back(resolve(o.from));
+        const void* out = resolve(o.from);
+        if (out == nullptr) {
+            return config::ConfigError{
+                graph_.mission, "out." + o.name, "the CPU stack has no value for the output: it is no builder's"};
+        }
+        st.outputs_.push_back(out);
     }
+    // The stack owns the operators and the slots now; the builder keeps its graph.
+    st.slots_ = std::move(slots_);
+    st.operators_ = std::move(operators_);
+    stacked_ = true;
     st.hash_ = graph_hash(*g);
     st.graph_ = std::move(g).value();
     return st;

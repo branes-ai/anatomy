@@ -310,7 +310,7 @@ public:
     [[nodiscard]] static an::result<FieldGraph, std::string> create(const Context& ctx) {
         fl::stack_builder<Context> g{"field", Baseline::kind, ctx};
         const Ports<double> p = describe<Baseline>(g, ctx.world);
-        auto st = g.build_stack();
+        auto st = std::move(g).build_stack();
         if (!st) {
             return st.error().to_string();
         }

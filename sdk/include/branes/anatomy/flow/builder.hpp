@@ -611,8 +611,9 @@ public:
     /// The checked graph, or the first invariant it breaks.
     [[nodiscard]] result<Graph, config::ConfigError> build() const;
 
-    /// The CPU stack that runs the checked graph. Pre: built by a stack_builder.
-    [[nodiscard]] result<stack, config::ConfigError> build_stack() const;
+    /// The CPU stack that runs the checked graph, which takes the builder's
+    /// operators and slots: a builder builds one stack. Pre: a stack_builder.
+    [[nodiscard]] result<stack, config::ConfigError> build_stack() &&;
 
     // ── The typed functions' entry points (below); not for missions ──
 
@@ -698,7 +699,8 @@ private:
     [[nodiscard]] std::size_t add_slot(std::shared_ptr<void> slot);
 
     Graph graph_;
-    bool runs_ = false;  ///< a stack_builder's: the graph is also run
+    bool runs_ = false;     ///< a stack_builder's: the graph is also run
+    bool stacked_ = false;  ///< build_stack() has taken the operators and slots
     std::vector<input_rec> inputs_;
     std::vector<std::string> constants_;
     std::vector<output_rec> outputs_;
