@@ -154,7 +154,7 @@ The loader checks G1–G3 and G5–G8 and refuses a graph that breaks any of the
 | G2 | every operator is registered; one placed as a composite's single-operator body fills that composite; and every firing names a handler its node declares (its binding has the function: the compiler, 2b) |
 | G3 | every in port of every handler has exactly one source, and every source exists; every external out port has one producer |
 | G4 | every edge joins two ports of the same domain (`port_t` equality); a projection `x.f` is `field_t` of `x`'s record |
-| G5 | within a region, the handlers' flow edges are acyclic, and the declared order is a topological order of them; a region updates a node's state at most once, so each read of it is declared before or after the update |
+| G5 | within a region, the handlers' flow edges are acyclic, and the declared order is a topological order of them; a region updates a node's state at most once, so each read of it is declared before or after the update; and a body's operator updates state only where its composite handler does |
 | G6 | every firing belongs to exactly one region, every region has one trigger the interface declares, a firing takes its time from an input of that trigger, and every handler of the interface's composites fires |
 | G7 | an edge between regions has a rate rule, and step 2 accepts `hold` only; an edge within a region, or from a constant, has none |
 | G8 | the baseline declares its class; a scoreboard baseline keeps the interface's composites, their ports and their connections, and gives each a body |

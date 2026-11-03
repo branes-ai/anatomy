@@ -707,6 +707,12 @@ std::map<std::string, Pending> expand_body(Layout& lay,
                 fkey,
                 "G3: every in port has one source: " + f.node + "." + f.handler + " has " +
                     std::to_string(h->in.size()) + " in ports, and " + std::to_string(f.sources.size()) + " sources");
+        // The interface orders its composites' updates (G5, in Regions); a
+        // body may update state only where its composite handler does.
+        require(h->state != state_role::update || ch.state == state_role::update,
+                fkey,
+                "G5: " + f.node + "." + f.handler + " updates its state, and " + c.name + "." + ch.name +
+                    " declares no update");
         require(h->state != state_role::update || updated.insert(f.node).second,
                 fkey,
                 "G5: a region updates a node's state once, so each read is before or after it");

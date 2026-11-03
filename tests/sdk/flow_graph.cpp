@@ -334,6 +334,18 @@ TEST_CASE("flow graph: G5 the declared order is a topological order", "[flow][gr
                             "gain.apply: [estimate, limits]\n"));
     CHECK(e.key == "graph.controller.handlers.step.fire[0][1]");
     CHECK(starts_with(e.message, "G5: the declared order is a topological order"));
+
+    // A body updates state only where its composite handler does, so the
+    // interface's order of reads and updates holds for the body's operators.
+    const auto reg = parse_registry(replace(read(fixtures / "operators.yaml"),
+                                            "apply: { in: [estimate, limits], out: [setpoint] }",
+                                            "apply: { in: [estimate, limits], out: [setpoint], state: update }"),
+                                    "operators");
+    REQUIRE(reg);
+    const auto g = load_graph(baseline(read(fixtures / "body.yaml")), "baseline", mission(), *reg);
+    REQUIRE_FALSE(g);
+    CHECK(g.error().key == "graph.controller.handlers.step.fire[0]");
+    CHECK(g.error().message == "G5: gain.apply updates its state, and controller.step declares no update");
 }
 
 TEST_CASE("flow graph: G6 regions, triggers and firings", "[flow][graph][invariant]") {
