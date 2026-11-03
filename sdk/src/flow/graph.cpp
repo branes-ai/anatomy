@@ -285,7 +285,9 @@ builder::fire(scope& s, std::size_t node, std::string_view handler, const time_o
     for (std::size_t k = 0; k < in.size(); ++k) {
         check_source(in[k], trigger, key + "[" + std::to_string(k) + "]");
     }
-    const std::string fired = n.name + "." + h.name + "@" + at_input;
+    // A body's firing is one per expansion of its composite's firing, which
+    // is itself once per region and input.
+    const std::string fired = n.name + "." + h.name + "@" + at_input + (s.outer_.empty() ? "" : " in " + s.outer_);
     if (contains(fired_, fired)) {
         fail(key, "G6: every firing belongs to exactly one region");
         return no_refs(h.out.size());
@@ -301,6 +303,7 @@ builder::fire(scope& s, std::size_t node, std::string_view handler, const time_o
         scope inner = s;
         inner.composite_ = n.name + "." + h.name;
         inner.state_ = h.state;
+        inner.outer_ = fired;
         return n.body[hi](inner, at, in);
     }
 

@@ -191,6 +191,18 @@ TEST_CASE("flow graph: a scoreboard body of several operators", "[flow][graph]")
     CHECK(graph_hash(g) != graph_hash(scoreboard_graph()));
 }
 
+TEST_CASE("flow graph: a body's firing fires once per firing of its composite", "[flow][graph]") {
+    // The estimator's estimate fires at the frame and at the tick, and the
+    // body's untimed read once in each.
+    const Graph g = graph(baseline_class::scoreboard,
+                          [](builder& b) { test::scoreboard<test::Bodies<test::FilteredEstimator>>(b); });
+    CHECK(g.instances[0] == Instance{"estimator.filter", "Filter", "estimator"});
+    CHECK(g.regions[1].firings[0] ==
+          Firing{"estimator.filter", "read", "", {}, "estimator.estimate", state_role::read});
+    CHECK(g.regions[2].firings[0] == g.regions[1].firings[0]);
+    CHECK(g.regions[2].firings[1].in == std::vector<Ref>{firing("tick", 0, "estimate")});
+}
+
 TEST_CASE("flow graph: a research graph with operators of their own", "[flow][graph]") {
     const Graph g = research_graph();
     CHECK(g.kind == baseline_class::research);

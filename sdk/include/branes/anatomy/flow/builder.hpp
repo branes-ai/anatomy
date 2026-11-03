@@ -378,6 +378,7 @@ private:
     builder* owner_;
     std::size_t region_;
     std::string composite_;  ///< `c.h`, in a body; else empty
+    std::string outer_;      ///< the composite firing a body's firing expands, in a body; else empty
     state_role state_ = state_role::none;
 };
 

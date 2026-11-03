@@ -135,6 +135,15 @@ struct TrackBinding {
     using handlers = fl::handlers<fl::handler<"step", ins<"estimate", "setpoint", "alerts", "marks">, outs<"command">>>;
 };
 
+/// An estimator's filter: what a body of the estimator fires, its read
+/// untimed, so the body's timed estimate fires it at each of its inputs.
+struct FilterBinding {
+    using signature = EstimatorBinding::signature;
+    using handlers = fl::handlers<fl::handler<"imu", ins<"imu">, outs<>, state_role::update>,
+                                  fl::handler<"frame", ins<"frame">, outs<>, state_role::update>,
+                                  fl::handler<"read", ins<>, outs<"estimate">, state_role::read>>;
+};
+
 struct TruthCheckBinding {
     using signature = fl::signature<fl::ports<port<"truth", domain_of_t<Truth>, direction::in>,
                                               port<"alerts", domain_of_t<Alerts>, direction::out>>>;
@@ -150,6 +159,7 @@ struct NullSafetyFilter {};
 struct Gain {};
 struct Track {};
 struct TruthCheck {};
+struct Filter {};
 
 using TestEstimatorOp = fl::registered<"TestEstimator", TestEstimator, EstimatorBinding>;
 using NullMonitorOp = fl::registered<"NullMonitor", NullMonitor, MonitorBinding>;
@@ -159,6 +169,7 @@ using GainOp = fl::registered<"Gain", Gain, GainBinding>;
 using StatefulGainOp = fl::registered<"StatefulGain", Gain, StatefulGainBinding>;
 using TrackOp = fl::registered<"Track", Track, TrackBinding>;
 using TruthCheckOp = fl::registered<"TruthCheck", TruthCheck, TruthCheckBinding>;
+using FilterOp = fl::registered<"Filter", Filter, FilterBinding>;
 
 /// A body of the controller: Gain makes a setpoint, which Track follows.
 template <class G = GainOp>
@@ -174,6 +185,27 @@ struct GainTrack {
             auto [command] = fl::fire<"step">(s, track, estimate, setpoint, alerts, marks);
             return std::tuple{command};
         });
+    }
+};
+
+/// A body of the estimator, whose timed estimate fires an untimed read: the
+/// mission fires the estimate at the frame and at the tick, so the body's
+/// read fires once in each.
+struct FilteredEstimator {
+    static constexpr std::string_view name = "FilteredEstimator";
+    using binding = EstimatorBinding;
+
+    static void build(fl::body<EstimatorBinding>& b) {
+        const auto filter = fl::instance<FilterOp>(b, "filter");
+        fl::on<"imu">(b, [=](fl::scope& s, auto imu) {
+            fl::fire<"imu">(s, filter, imu);
+            return std::tuple<>{};
+        });
+        fl::on<"frame">(b, [=](fl::scope& s, auto frame) {
+            fl::fire<"frame">(s, filter, frame);
+            return std::tuple<>{};
+        });
+        fl::on<"estimate">(b, [=](fl::scope& s, const fl::time_of&) { return fl::fire<"read">(s, filter); });
     }
 };
 
