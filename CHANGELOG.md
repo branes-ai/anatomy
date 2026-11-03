@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.2](https://github.com/branes-ai/anatomy/compare/v0.9.1...v0.9.2) (2026-11-03)
+
+
+### Build System
+
+* silence yaml-cpp's c4267 warnings on msvc ([#58](https://github.com/branes-ai/anatomy/issues/58)) ([9cc0409](https://github.com/branes-ai/anatomy/commit/9cc0409d07f8cd080bbf6974696fcb825598adf5))
+
 ## [0.9.1](https://github.com/branes-ai/anatomy/compare/v0.9.0...v0.9.1) (2026-11-03)
 
 
