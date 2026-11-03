@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/branes-ai/anatomy/compare/v0.7.2...v0.8.0) (2026-11-03)
+
+
+### Features
+
+* **flow:** the graph builder, and its checks ([#50](https://github.com/branes-ai/anatomy/issues/50)) ([1297f16](https://github.com/branes-ai/anatomy/commit/1297f165cad252adabf2f5adfb2c05d6c7ad5931)), closes [#47](https://github.com/branes-ai/anatomy/issues/47)
+
 ## [0.7.2](https://github.com/branes-ai/anatomy/compare/v0.7.1...v0.7.2) (2026-11-02)
 
 
