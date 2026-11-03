@@ -1,0 +1,10 @@
+# The field mission's research baseline: the truth as the estimate, and one
+# operator of its own that plans and commands, as GoalPlanner and
+# NullController do.
+name: field-research
+class: research
+composition:
+  controller: NullController
+  estimator: GroundTruthCore
+  planner: GoalPlanner
+graph: Direct

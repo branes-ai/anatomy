@@ -464,7 +464,8 @@ TEST_CASE("flow graph: G6 regions, triggers and firings", "[flow][graph][invaria
         auto [estimate] = fire<"estimate">(tick, c.estimator, at(p.tick));
         auto [alerts] = fire<"alerts">(tick, c.monitor, estimate);
         auto [command] = fire<"step">(tick, c.controller, estimate, p.limits, alerts, hold(p.marks));
-        auto [safe] = fire<"filter">(tick, c.safety_filter, estimate, command, project<"ceiling">(p.limits));
+        auto [safe] = fire<"filter">(
+            tick, c.safety_filter, estimate, command, project<"ceiling", &test::Limits::ceiling>(p.limits));
         g.produce(p.estimate, estimate);
         g.produce(p.command, safe);
     });

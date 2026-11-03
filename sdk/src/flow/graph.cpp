@@ -3,6 +3,7 @@
 #include <branes/anatomy/util/sha256.hpp>
 
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -63,7 +64,7 @@ std::string text(state_role s) {
 
 // ── The builder ─────────────────────────────────────────────────────
 
-builder::builder(std::string mission, baseline_class kind) {
+builder::builder(std::string mission, baseline_class kind, bool runs) : runs_(runs) {
     graph_.mission = std::move(mission);
     graph_.kind = kind;
 }
@@ -89,33 +90,45 @@ const builder::input_rec* builder::find_input(std::string_view name) const {
     return it == inputs_.end() ? nullptr : &*it;
 }
 
-std::vector<Ref> builder::no_refs(std::size_t n) {
-    return std::vector<Ref>(n);
+std::size_t builder::add_slot(std::shared_ptr<void> slot) {
+    slots_.push_back(std::move(slot));
+    return slots_.size() - 1;
 }
 
 input_port<Timestamp> builder::tick(std::string name) {
-    return input_port<Timestamp>{{add_input(std::move(name), false, {})}};
+    const std::string trigger = name;
+    auto in = add_input(
+        std::move(name), false, trigger, false, std::make_shared<Timestamp>(), detail::time_fn_of<Timestamp>(nullptr));
+    return input_port<Timestamp>{{in.source}, in.index};
 }
 
-Ref builder::add_input(std::string name, bool message, input_options options) {
+builder::input_ref builder::add_input(std::string name,
+                                      bool message,
+                                      std::string trigger,
+                                      bool sitl_only,
+                                      std::shared_ptr<void> slot,
+                                      std::function<Timestamp(const void*)> time) {
     check_name(name, name, "an input's");
-    std::string trigger = options.trigger.empty() ? name : std::move(options.trigger);
     if (!is_name(trigger)) {
         fail(name, "G1: a trigger's names match [a-z_][a-z0-9_]*");
     }
-    inputs_.push_back(input_rec{name, message, std::move(trigger), std::move(options.time), options.sitl_only});
-    Ref r;
-    r.from = Ref::kind::input;
-    r.port = std::move(name);
+    const std::size_t id = add_slot(std::move(slot));
+    inputs_.push_back(input_rec{name, message, std::move(trigger), sitl_only, id, std::move(time)});
+    input_ref r;
+    r.source.ref.from = Ref::kind::input;
+    r.source.ref.port = std::move(name);
+    r.source.slot = id;
+    r.index = inputs_.size() - 1;
     return r;
 }
 
-Ref builder::add_constant(std::string name, constant_options options) {
+detail::source builder::add_constant(std::string name, std::shared_ptr<void> slot) {
     check_name(name, name, "a constant's");
-    constants_.push_back(constant_rec{name, std::move(options.from)});
-    Ref r;
-    r.from = Ref::kind::constant;
-    r.port = std::move(name);
+    constants_.push_back(name);
+    detail::source r;
+    r.ref.from = Ref::kind::constant;
+    r.ref.port = std::move(name);
+    r.slot = add_slot(std::move(slot));
     return r;
 }
 
@@ -193,6 +206,21 @@ std::size_t builder::add_body_instance(std::size_t composite,
     return nodes_.size() - 1;
 }
 
+void builder::set_operator(std::size_t node,
+                           result<std::shared_ptr<void>, std::string> op,
+                           std::vector<detail::thunk_fn> thunks) {
+    node_rec& n = nodes_[node];
+    if (!op) {
+        fail(n.name, "the operator could not be built: " + op.error());
+        return;
+    }
+    if (operators_.size() <= n.instance) {
+        operators_.resize(n.instance + 1);
+    }
+    operators_[n.instance] = std::move(op).value();
+    n.thunks = std::move(thunks);
+}
+
 void builder::add_body_handler(std::size_t composite, std::string_view handler, body_handler fn) {
     node_rec& c = nodes_[composite];
     const auto it = std::find_if(
@@ -227,6 +255,7 @@ scope builder::region_of(const std::string& input) {
     }
     graph_.regions.push_back(Region{trigger, {}});
     updated_.emplace_back();
+    runs_of_.emplace_back();
     return scope(*this, graph_.regions.size() - 1);
 }
 
@@ -265,8 +294,12 @@ void builder::check_source(const Ref& ref, const std::string& trigger, const std
     }
 }
 
-std::vector<Ref>
-builder::fire(scope& s, std::size_t node, std::string_view handler, const time_of* at, std::vector<Ref> in) {
+std::vector<detail::source> builder::fire(scope& s,
+                                          std::size_t node,
+                                          std::string_view handler,
+                                          const time_of* at,
+                                          std::vector<detail::source> in,
+                                          std::span<const detail::slot_factory> outs) {
     node_rec& n = nodes_[node];
     const auto it = std::find_if(
         n.handlers.begin(), n.handlers.end(), [&](const detail::handler_info& h) { return h.name == handler; });
@@ -275,22 +308,31 @@ builder::fire(scope& s, std::size_t node, std::string_view handler, const time_o
     const std::string trigger = graph_.regions[s.region_].trigger;
     const std::string key = trigger + "[" + std::to_string(graph_.regions[s.region_].firings.size()) + "]";
     const std::string at_input = at != nullptr ? at->input : std::string();
+    const std::vector<detail::source> none(h.out.size());
 
+    std::size_t at_index = detail::no_slot;
     if (at != nullptr) {
         const input_rec* t = find_input(at_input);
         if (t == nullptr || t->trigger != trigger) {
             fail(key, "G6: a firing takes its time from an input of its region's trigger");
+        } else {
+            at_index = static_cast<std::size_t>(t - inputs_.data());
+            if (runs_ && !t->time) {
+                fail(key,
+                     "the CPU stack takes a time from an input that has one: give " + in_quotes(t->name) +
+                         " input_options::time");
+            }
         }
     }
     for (std::size_t k = 0; k < in.size(); ++k) {
-        check_source(in[k], trigger, key + "[" + std::to_string(k) + "]");
+        check_source(in[k].ref, trigger, key + "[" + std::to_string(k) + "]");
     }
     // A body's firing is one per expansion of its composite's firing, which
     // is itself once per region and input.
     const std::string fired = n.name + "." + h.name + "@" + at_input + (s.outer_.empty() ? "" : " in " + s.outer_);
     if (contains(fired_, fired)) {
         fail(key, "G6: every firing belongs to exactly one region");
-        return no_refs(h.out.size());
+        return none;
     }
     fired_.push_back(fired);
     n.fired[hi] = true;
@@ -298,7 +340,7 @@ builder::fire(scope& s, std::size_t node, std::string_view handler, const time_o
     // A composite whose body has several operators fires them, in place of itself.
     if (n.composite && !n.of_one_operator) {
         if (!n.body[hi]) {
-            return no_refs(h.out.size());  // end_body() reported it
+            return none;  // end_body() reported it
         }
         scope inner = s;
         inner.composite_ = n.name + "." + h.name;
@@ -323,28 +365,42 @@ builder::fire(scope& s, std::size_t node, std::string_view handler, const time_o
         composite = n.name + "." + h.name;
     }
     Region& region = graph_.regions[s.region_];
-    region.firings.push_back(Firing{op, h.name, at_input, std::move(in), std::move(composite), h.state});
-
-    std::vector<Ref> outs;
-    for (const std::string& port : h.out) {
-        Ref r;
-        r.from = Ref::kind::firing;
-        r.region = trigger;
-        r.firing = region.firings.size() - 1;
-        r.port = port;
-        outs.push_back(std::move(r));
+    std::vector<Ref> refs;
+    for (const detail::source& src : in) {
+        refs.push_back(src.ref);
     }
-    return outs;
+    region.firings.push_back(Firing{op, h.name, at_input, std::move(refs), std::move(composite), h.state});
+
+    firing_rec run{n.instance, n.thunks.empty() ? nullptr : n.thunks[hi], std::move(in), {}, at_index};
+    std::vector<detail::source> result;
+    for (std::size_t k = 0; k < h.out.size(); ++k) {
+        detail::source out;
+        out.ref.from = Ref::kind::firing;
+        out.ref.region = trigger;
+        out.ref.firing = region.firings.size() - 1;
+        out.ref.port = h.out[k];
+        if (outs[k] != nullptr) {
+            out.slot = add_slot(outs[k]());
+        } else if (runs_) {
+            fail(key,
+                 "the CPU stack runs ports that carry message types: " + op + "." + h.name + "'s " +
+                     in_quotes(h.out[k]) + " carries none");
+        }
+        run.out.push_back(out.slot);
+        result.push_back(std::move(out));
+    }
+    runs_of_[s.region_].push_back(std::move(run));
+    return result;
 }
 
-void builder::produce_ref(std::size_t out, const Ref& from) {
+void builder::produce_source(std::size_t out, const detail::source& from) {
     output_rec& o = outputs_[out];
     const std::string key = "out." + o.name;
     if (o.produced) {
         fail(key, "G3: every external out port has one producer: " + in_quotes(o.name) + " has two");
         return;
     }
-    if (from.from != Ref::kind::firing || from.region != o.region || from.rate != rate_rule::none) {
+    if (from.ref.from != Ref::kind::firing || from.ref.region != o.region || from.ref.rate != rate_rule::none) {
         fail(key, "G6: an output is written by a firing of its region, " + in_quotes(o.region));
         return;
     }
@@ -380,7 +436,7 @@ result<Graph, config::ConfigError> builder::build() const {
                                        "G3: every external out port has one producer: " + in_quotes(o.name) +
                                            " has none"};
         }
-        g.outputs.push_back(Output{o.name, o.region, o.from});
+        g.outputs.push_back(Output{o.name, o.region, o.from.ref});
     }
 
     // G9: a graph that reads a SITL-only input, or takes its time, is SITL-only.
@@ -396,6 +452,65 @@ result<Graph, config::ConfigError> builder::build() const {
         }
     }
     return g;
+}
+
+result<stack, config::ConfigError> builder::build_stack() const {
+    auto g = build();
+    if (!g) {
+        return g.error();
+    }
+    if (!runs_) {
+        return config::ConfigError{
+            graph_.mission, "", "a stack is built by a stack_builder, which builds the operators from a context"};
+    }
+    const auto resolve = [&](const detail::source& src) -> const void* {
+        if (src.slot == detail::no_slot) {
+            return nullptr;
+        }
+        const void* p = slots_[src.slot].get();
+        for (const detail::access_fn f : src.access) {
+            p = f(p);
+        }
+        return p;
+    };
+    stack st;
+    st.slots_ = slots_;
+    st.operators_ = operators_;
+    for (const input_rec& in : inputs_) {
+        std::size_t region = detail::no_slot;
+        for (std::size_t r = 0; r < g->regions.size(); ++r) {
+            if (g->regions[r].trigger == in.trigger) {
+                region = r;
+            }
+        }
+        st.inputs_.push_back(stack::input_rec{slots_[in.slot].get(), region, in.time});
+    }
+    for (std::size_t r = 0; r < runs_of_.size(); ++r) {
+        std::vector<stack::firing> region;
+        for (std::size_t i = 0; i < runs_of_[r].size(); ++i) {
+            const firing_rec& f = runs_of_[r][i];
+            const std::string key = g->regions[r].trigger + "[" + std::to_string(i) + "]";
+            void* op = f.instance < operators_.size() ? operators_[f.instance].get() : nullptr;
+            if (op == nullptr || f.thunk == nullptr) {
+                return config::ConfigError{graph_.mission, key, "the CPU stack has no operator to fire"};
+            }
+            stack::firing run{f.thunk, op, {}, {}, f.at};
+            for (const detail::source& src : f.in) {
+                run.in.push_back(resolve(src));
+            }
+            for (const std::size_t slot : f.out) {
+                run.out.push_back(slots_[slot].get());
+            }
+            region.push_back(std::move(run));
+        }
+        st.regions_.push_back(std::move(region));
+    }
+    for (const output_rec& o : outputs_) {
+        st.outputs_.push_back(resolve(o.from));
+    }
+    st.hash_ = graph_hash(*g);
+    st.graph_ = std::move(g).value();
+    return st;
 }
 
 // ── The graph ───────────────────────────────────────────────────────

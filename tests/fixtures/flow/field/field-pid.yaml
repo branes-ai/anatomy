@@ -1,0 +1,15 @@
+# The field mission's PID baseline: the null baseline, with the cascaded PID
+# as its controller. The slot form names the same slots.
+name: field-pid
+class: scoreboard
+composition:
+  controller: CascadedPid
+  estimator: GroundTruthCore
+  planner: GoalPlanner
+graph:
+  estimator: GroundTruthCore
+  planner: GoalPlanner
+  daa_tracker: NullDaaTracker
+  controller: CascadedPid
+  safety_filter: NullSafetyFilter
+  fc_bridge: NullFcBridge

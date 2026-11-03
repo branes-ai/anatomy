@@ -37,8 +37,10 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/deps.cmake)
 find_package(Threads REQUIRED)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/warnings.cmake)
 
-# A mission composes its baselines with cmake/composition.cmake:
+# A mission composes its slot baselines with cmake/composition.cmake, and
+# names what fills its graph baselines with cmake/flow.cmake:
 #   include(${ANATOMY_CMAKE_DIR}/composition.cmake)
+#   include(${ANATOMY_CMAKE_DIR}/flow.cmake)
 set(ANATOMY_CMAKE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cmake CACHE INTERNAL "anatomy's CMake modules")
 
 # The framework library: data contracts, slots, configs, the log, the harness.
