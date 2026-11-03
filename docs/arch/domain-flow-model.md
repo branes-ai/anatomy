@@ -186,11 +186,14 @@ The result is a **resource contract** for each region: the processing elements, 
 
 ## 10. What happens to today's code
 
-- **Slot concepts and their implementations** become the CPU implementations of operators. Their methods map to ports and handlers.
-- **`Stack::on_tick`** becomes the control region, its firings in the checked order, and the other `on_*` handlers become the regions their triggers fire.
-- **The profile's channels** become the mission's external ports.
-- **`TruthConsumer`** disappears: `truth` is an external port that only the SITL interface has, so a flight graph that reads truth does not build (SYS-02).
-- **`make_slot` and `from_context`** remain how an operator's implementation is built from the mission's context.
+Step 2 of ADR 0004 runs today's code from the graph, unchanged, and step 5 retires the slots ([plan](../plan/flow-graph/README.md)).
+
+- **Slot concepts and their implementations** become the CPU implementations of operators. A composite's binding maps each method of the slot's concept to a handler, a struct whose static `call()` calls the method, so every implementation is an operator of its composite as it is (`mobility/flow/bindings.hpp` for the neutral composites).
+- **`Stack::on_tick`** becomes the control region, its firings in the checked order, and the other `on_*` handlers become the regions their triggers fire. The mission still writes the hooks: each hands the CPU stack its input and reads its outputs, and holds no logic.
+- **The profile's channels** become the mission's external ports. The log keeps its channels, so a graph build logs what its slot build logs, and the two logs differ only in `composition_hash`.
+- **`TruthConsumer`** disappears: `truth` is an external port that only the SITL interface has, so a graph that reads truth is marked SITL-only, as the checked graph says (G9). Until the slots retire, the estimator's binding hands the truth to an estimator that is a `TruthConsumer`, and does nothing for one that isn't, so a graph with that binding is SITL-only whichever estimator fills it.
+- **`make_slot` and `from_context`** remain how an operator's implementation is built from the mission's context: the stack builder builds each operator with `make_slot`.
+- **`composition_generate()` and the slot baselines' targets** stay beside the graph builds until step 5, and a gate holds each graph build equal to its slot build.
 
 ## 11. Open questions
 
