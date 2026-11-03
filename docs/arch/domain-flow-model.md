@@ -187,7 +187,7 @@ The result is a **resource contract** for each region: the processing elements, 
 ## 10. What happens to today's code
 
 - **Slot concepts and their implementations** become the CPU implementations of operators. Their methods map to ports and handlers.
-- **`Stack::on_tick`** becomes the generated schedule for the control region, and the other `on_*` handlers become the regions their triggers fire.
+- **`Stack::on_tick`** becomes the control region, its firings in the checked order, and the other `on_*` handlers become the regions their triggers fire.
 - **The profile's channels** become the mission's external ports.
 - **`TruthConsumer`** disappears: `truth` is an external port that only the SITL interface has, so a flight graph that reads truth does not build (SYS-02).
 - **`make_slot` and `from_context`** remain how an operator's implementation is built from the mission's context.
