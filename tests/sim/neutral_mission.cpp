@@ -227,7 +227,7 @@ TEST_CASE("neutral: the runner drives another mission's stack and passes its cha
 TEST_CASE("neutral: the cascaded PID builds from another mission's slot context", "[neutral]") {
     const auto vehicle = config::load_vehicle(src / "tests/fixtures/vehicle.yaml");
     REQUIRE(vehicle);
-    const config::BaselineConfig baseline{"field", {}, {}, {}, {}};
+    const config::BaselineConfig baseline{"field", {}, {}, {}, {}, {}};
     const Field field{};
     const BasicSlotContext<Field> ctx{*vehicle, baseline, field};
     static_assert(ContextBuilt<glue::CascadedPid<double>, BasicSlotContext<Field>>);
