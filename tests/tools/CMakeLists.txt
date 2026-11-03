@@ -2,7 +2,7 @@
 #
 # framework.names_no_mission: anatomy's code (comments aside) names nothing of
 # a mission: no racing namespace, include, or task type. It scans sdk/, yaml/,
-# mobility/, sim/, glue/, tests/ and cmake/, except this directory, which holds
+# mobility/, sim/, glue/, apps/, tests/ and cmake/, except this directory, which holds
 # the check, its fixture, and this registration, all of which name the tokens
 # on purpose.
 # framework.detects_mission_names checks that the check fails, with the right

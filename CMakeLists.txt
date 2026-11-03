@@ -55,6 +55,9 @@ add_subdirectory(glue)
 # The closed-loop simulator on the reflex dynamics.
 add_subdirectory(sim)
 
+# The tools a mission's gates run: log_compare.
+add_subdirectory(apps)
+
 if(ANATOMY_BUILD_TESTS AND BUILD_TESTING)
     add_subdirectory(tests)
 endif()

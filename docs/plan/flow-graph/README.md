@@ -184,7 +184,7 @@ The compiler checks what the types know, with a `static_assert` that names the i
 
 ## Acceptance
 
-Step 2 is four PRs. Each is accepted on its own criteria, and the step on all of them.
+Step 2 is five PRs, 2c being two. Each is accepted on its own criteria, and the step on all of them.
 
 **2a, anatomy: the graph builder.**
 1. `flow/builder.hpp`: handlers, bindings, registered operators, bodies, and the builder, which checks G1–G3 and G5–G8 as a graph is built, and returns the checked graph (`flow/graph.hpp`). A checked graph is flattened to operator firings, a body's firings in place of its composite's, in the order the regions run them.
@@ -200,11 +200,12 @@ Step 2 is four PRs. Each is accepted on its own criteria, and the step on all of
 4. A compile-fail test for a binding that lacks a handler's `call()` (G2), for a stack of ports that carry no message type, and for a projection of a message that names no member.
 5. No existing target changes, and every existing test passes.
 
-**2c, scout-drone: the graphs.**
-1. Scout's ports, composites and regions (`mission/flow/`), scout's bindings (estimator and planner), and `domain_of` for `Field` and `ObstacleObservations`.
+**2c, scout-drone: the graphs.** Two PRs: anatomy's comparison, then scout's graphs, on the anatomy release that has it.
+1. Scout's ports, composites and regions, scout's bindings (estimator and planner), and `domain_of` for `Field` and `ObstacleObservations` (`<branes/scout/flow/...>`).
 2. `s0-gt-pid` and `null` gain `class: scoreboard` and `graph:`, and build `sitl_<name>_graph`, `replay_<name>_graph` and `sitl_batch_<name>_graph` beside the slot targets.
-3. **Equality with the slot stack,** on every scenario in `scenarios/` and the batch: the logs of the slot and graph builds have byte-identical records, and headers equal in every field except `composition_hash`. That is the slot hash in one, and the graph hash in the other. A comparison tool in anatomy (`log_compare --except composition_hash`) checks it in a gate test.
+3. **Equality with the slot stack,** on every scenario in `scenarios/` and the batch: the logs of the slot and graph builds have byte-identical records, and headers equal in every field except `composition_hash`. That is the slot hash in one, and the graph hash in the other. A comparison in anatomy (`log::compare()`, and the tool `log_compare --a <log> --b <log> --except composition_hash`) checks it in a gate test. For the batch, which writes no log, the two batches' JSON lines and reports are byte-identical.
 4. The determinism gate passes for the graph build as it does for the slot build.
+5. **The comparison, in anatomy.** `log::compare()` (`log/compare.hpp`) reads two logs on any mission's channels, and returns the records it compared and the first difference: a header field not left out, or a record's channel, time or payload, or a log with more records. A log it can't read, and a field name that isn't a header field, are errors. `log_compare` (`apps/`) exits 0 for equal logs, 1 for logs that differ, naming the difference, and 2 for an error. A unit test covers each case, and a test runs the tool on each exit code.
 
 **racing-drone: unchanged.**
 1. In a racing-drone branch that moves its anatomy pin to the release with 2a and 2b, every baseline builds and passes its gates. Its SITL logs on its scenarios are byte-identical to its main's. The branch is a check, and isn't merged unless asked: racing-drone's pin moves in its own PR (ADR 0008).
@@ -248,6 +249,7 @@ Choices 1 to 7 were confirmed on 2026-11-02, after 2a's first version described 
 |---|---|---|
 | This plan | [#48](https://github.com/branes-ai/anatomy/pull/48) | merged |
 | 2a: the graph builder | [#50](https://github.com/branes-ai/anatomy/pull/50) | merged |
-| 2b: the CPU stack | [#52](https://github.com/branes-ai/anatomy/pull/52) | open |
-| 2c: scout-drone's graphs | | not started |
+| 2b: the CPU stack | [#52](https://github.com/branes-ai/anatomy/pull/52) | merged |
+| 2c: anatomy's log comparison | | open |
+| 2c: scout-drone's graphs | | in progress |
 | 2d: docs | | not started |
