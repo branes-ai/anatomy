@@ -205,7 +205,7 @@ Step 2 is four PRs. Each is accepted on its own criteria, and the step on all of
 
 ## Design choices
 
-Choices 1 to 6 were confirmed on 2026-11-02, after 2a's first version described the graph in YAML. Choice 7 is proposed for 2b.
+All seven were confirmed on 2026-11-02, after 2a's first version described the graph in YAML.
 
 1. **The graph is described in C++, not in a file.** A file format would be a new format to design, parse and keep in step with the C++ types, and the alternatives examined don't hold a mission's graph:
    - **GGUF** holds a model's weights and metadata. Its graph is built in code, per architecture, as llama.cpp and synapse do. It remains the container for operators' weights and stationary parameters.
@@ -217,7 +217,7 @@ Choices 1 to 6 were confirmed on 2026-11-02, after 2a's first version described 
 4. **A scoreboard baseline's file names a body per composite, and nothing else.** The mission's code fixes the composites and how they connect, so a scoreboard baseline can't rewire them: decision 6's rule holds by construction, and `check_baseline()` checks the names. A research baseline names a graph registered in C++.
 5. **The slot concepts become the bindings, the CPU calling convention, until step 5.** Every existing implementation works unchanged. The alternative is to rewrite each implementation as an operator with one method per port, which would change code that the equality criterion compares against.
 6. **The camera frame is opaque in step 2,** with no bounded extents until an operator reads pixels. **In the scout logs, the headers may differ in `composition_hash` only:** a graph build's log names the graph's hash, so whole logs can't be byte-identical to the slot build's. Everything else, every record included, must be.
-7. **Proposed for 2b: the CPU stack runs the checked graph, with no generator.** A generator would turn the graph into C++ source. That needs a host tool, which matters when anatomy is cross-compiled, and C++ spellings of the types, which the builder doesn't have. The stack instead records, for each firing, a function instantiated from the binding, so each handler call is static and inlined within its function. What remains is one indirect call per firing, through a table fixed at build time, with no virtual dispatch and no allocation once built. The alternative is to generate the source as `composition_generate()` does, from names the registry gives.
+7. **The CPU stack runs the checked graph, with no generator.** A generator would turn the graph into C++ source. That needs a host tool, which matters when anatomy is cross-compiled, and C++ spellings of the types, which the builder doesn't have. The stack instead records, for each firing, a function instantiated from the binding, so each handler call is static and inlined within its function. What remains is one indirect call per firing, through a table fixed at build time, with no virtual dispatch and no allocation once built. The alternative is to generate the source as `composition_generate()` does, from names the registry gives.
 
 ## Not in this step
 
