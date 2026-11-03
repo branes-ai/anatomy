@@ -92,7 +92,7 @@ A research graph may connect the mission's external ports in any way. It is scor
 
 A key that no component reads is not reported. A misspelled key therefore leaves the component on its default, with no error. The apps read `control_rate_hz` themselves, which defaults to `kDefaultControlRateHz`, 100 Hz.
 
-Values are stored as strings and read with `numeric_parameter()`, which accepts a value only if the whole string is a finite number. `emit_baseline()` writes doubles to 17 significant digits, so a file emitted loads back equal.
+Values are stored as strings and read with `numeric_parameter()`, which accepts a value only if the whole string is a finite number. `emit_baseline()` writes each value back as the string it was read as, so an emitted file loads back equal.
 
 ## Who reads it, and when
 
