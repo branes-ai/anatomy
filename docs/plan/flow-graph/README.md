@@ -248,6 +248,6 @@ Choices 1 to 7 were confirmed on 2026-11-02, after 2a's first version described 
 |---|---|---|
 | This plan | [#48](https://github.com/branes-ai/anatomy/pull/48) | merged |
 | 2a: the graph builder | [#50](https://github.com/branes-ai/anatomy/pull/50) | merged |
-| 2b: the CPU stack | | in progress |
+| 2b: the CPU stack | [#52](https://github.com/branes-ai/anatomy/pull/52) | open |
 | 2c: scout-drone's graphs | | not started |
 | 2d: docs | | not started |
