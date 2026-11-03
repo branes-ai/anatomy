@@ -28,10 +28,14 @@ namespace {
 const std::filesystem::path src = ANATOMY_SOURCE_DIR;
 const std::filesystem::path fixtures = src / "tests/fixtures/flow";
 
+/// A fixture's text, with line ends as "\n" whatever the checkout's, so the
+/// tests' edits find their text.
 std::string read(const std::filesystem::path& p) {
     std::ifstream in(p, std::ios::binary);
     REQUIRE(in);
-    return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    std::string s{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    std::erase(s, '\r');
+    return s;
 }
 
 /// Replace the first occurrence of `from` in `s` with `to`. Pre: `from` occurs in `s`.
@@ -241,8 +245,8 @@ TEST_CASE("flow graph: the canonical form survives a round trip", "[flow][graph]
         CHECK(graph_hash(*again) == graph_hash(g));
     }
 
-    // The layout of the file isn't part of the graph: flow style, and the
-    // order of the composites' bodies, give one canonical form.
+    // The layout of the file isn't part of the graph: flow style, the order
+    // of the composites' bodies, and the line ends give one canonical form.
     const std::string yaml = read(fixtures / "scoreboard.yaml");
     const std::string flow_style =
         replace(yaml,
@@ -251,6 +255,11 @@ TEST_CASE("flow graph: the canonical form survives a round trip", "[flow][graph]
                 "graph: {safety_filter: NullSafetyFilter, controller: PassController, monitor: NullMonitor, "
                 "estimator: TestEstimator}\n");
     CHECK(canonical(graph(flow_style)) == canonical(graph(yaml)));
+    std::string crlf;
+    for (const char c : yaml) {
+        crlf += c == '\n' ? std::string("\r\n") : std::string(1, c);
+    }
+    CHECK(canonical(graph(crlf)) == canonical(graph(yaml)));
 
     // A different operator, or order of firings, is a different graph.
     const Graph g = graph(yaml);
