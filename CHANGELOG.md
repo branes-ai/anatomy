@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.0](https://github.com/branes-ai/anatomy/compare/v0.8.0...v0.9.0) (2026-11-03)
+
+
+### Features
+
+* **flow:** the cpu stack, which runs the checked graph ([#52](https://github.com/branes-ai/anatomy/issues/52)) ([c2a9e5a](https://github.com/branes-ai/anatomy/commit/c2a9e5abedc697be2bff88bc8fbd27d7e88b2259))
+* **log:** compare two logs, and the log_compare tool ([#54](https://github.com/branes-ai/anatomy/issues/54)) ([e5e2f2f](https://github.com/branes-ai/anatomy/commit/e5e2f2f6940ca5c2d1d58a64c4762e75b689eee9))
+
 ## [0.8.0](https://github.com/branes-ai/anatomy/compare/v0.7.2...v0.8.0) (2026-11-03)
 
 
