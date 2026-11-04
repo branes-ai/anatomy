@@ -561,6 +561,121 @@ std::string graph_hash(const Graph& g) {
     return sha256_hex(canonical(g));
 }
 
+namespace {
+
+/// `s` as Mermaid text inside double quotes.
+std::string mermaid_text(std::string_view s) {
+    std::string t;
+    for (const char c : s) {
+        switch (c) {
+        case '"':
+            t += "#quot;";
+            break;
+        case '<':
+            t += "#lt;";
+            break;
+        case '>':
+            t += "#gt;";
+            break;
+        default:
+            t += c;
+        }
+    }
+    return t;
+}
+
+/// The index of `name` in `names`, appended if it is not there.
+std::size_t index_of(std::vector<std::string>& names, const std::string& name) {
+    const auto it = std::find(names.begin(), names.end(), name);
+    if (it != names.end()) {
+        return static_cast<std::size_t>(it - names.begin());
+    }
+    names.push_back(name);
+    return names.size() - 1;
+}
+
+}  // namespace
+
+std::string mermaid(const Graph& g) {
+    // The inputs and constants the graph reads, in the order it first reads them.
+    std::vector<std::string> inputs;
+    std::vector<std::string> constants;
+    const auto source = [&](const Ref& ref) -> std::string {
+        switch (ref.from) {
+        case Ref::kind::input:
+            return "in" + std::to_string(index_of(inputs, ref.port));
+        case Ref::kind::constant:
+            return "k" + std::to_string(index_of(constants, ref.port));
+        case Ref::kind::firing:
+            break;
+        }
+        for (std::size_t r = 0; r < g.regions.size(); ++r) {
+            if (g.regions[r].trigger == ref.region) {
+                return "r" + std::to_string(r) + "f" + std::to_string(ref.firing);
+            }
+        }
+        return "r_" + ref.region + "f" + std::to_string(ref.firing);
+    };
+    // An edge names the out port it reads, and an input or a constant only
+    // the fields it projects: its node names it.
+    const auto edge = [&](const Ref& ref, const std::string& to) {
+        std::string label = ref.from == Ref::kind::firing ? ref.port : "";
+        for (const auto& f : ref.path) {
+            label += "." + f;
+        }
+        if (ref.rate == rate_rule::hold) {
+            label += label.empty() ? "hold" : " (hold)";
+        }
+        const std::string arrow = ref.rate == rate_rule::hold ? " -.->" : " -->";
+        return "    " + source(ref) + arrow + (label.empty() ? "" : "|\"" + mermaid_text(label) + "\"|") + " " + to +
+               "\n";
+    };
+
+    std::string nodes;
+    std::string edges;
+    for (std::size_t r = 0; r < g.regions.size(); ++r) {
+        const Region& region = g.regions[r];
+        nodes += "    subgraph r" + std::to_string(r) + "[\"region " + mermaid_text(region.trigger) + "\"]\n";
+        for (std::size_t i = 0; i < region.firings.size(); ++i) {
+            const Firing& f = region.firings[i];
+            const std::string id = "r" + std::to_string(r) + "f" + std::to_string(i);
+            const std::string call = f.op + "." + f.handler;
+            std::string notes = f.composite.empty() || f.composite == call ? "" : f.composite;
+            if (f.state != state_role::none) {
+                notes += (notes.empty() ? "" : ", ") + text(f.state);
+            }
+            // The <br/> is Mermaid's line break; the names are escaped.
+            nodes += "        " + id + "[\"" + mermaid_text(call) + (f.at.empty() ? "" : "@" + mermaid_text(f.at)) +
+                     (notes.empty() ? "" : "<br/>" + mermaid_text(notes)) + "\"]\n";
+            if (!f.at.empty()) {
+                Ref time;
+                time.port = f.at;
+                edges += "    " + source(time) + " -->|\"time\"| " + id + "\n";
+            }
+            for (const Ref& ref : f.in) {
+                edges += edge(ref, id);
+            }
+        }
+        nodes += "    end\n";
+    }
+    for (std::size_t o = 0; o < g.outputs.size(); ++o) {
+        const std::string id = "out" + std::to_string(o);
+        nodes += "    " + id + "[/\"" + mermaid_text(g.outputs[o].name) + "\"/]\n";
+        edges += edge(g.outputs[o].from, id);
+    }
+
+    std::string s = "flowchart LR\n    %% flow-graph " + g.mission + ", " +
+                    (g.kind == baseline_class::scoreboard ? "scoreboard" : "research") +
+                    (g.sitl_only ? ", SITL-only" : "") + "\n";
+    for (std::size_t i = 0; i < inputs.size(); ++i) {
+        s += "    in" + std::to_string(i) + "([\"" + mermaid_text(inputs[i]) + "\"])\n";
+    }
+    for (std::size_t k = 0; k < constants.size(); ++k) {
+        s += "    k" + std::to_string(k) + "[(\"" + mermaid_text(constants[k]) + "\")]\n";
+    }
+    return s + nodes + edges;
+}
+
 result<ok_t, config::ConfigError>
 check_baseline(const config::BaselineConfig& b, std::string_view origin, const Graph& g) {
     const std::string file(origin);
