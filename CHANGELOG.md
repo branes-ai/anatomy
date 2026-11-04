@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/branes-ai/anatomy/compare/v0.10.4...v0.11.0) (2026-11-04)
+
+
+### Features
+
+* **flow:** trace every edge a stack writes, and compare two traces ([#73](https://github.com/branes-ai/anatomy/issues/73)) ([6bcf31d](https://github.com/branes-ai/anatomy/commit/6bcf31d2ce9c087848d32d5332d8f7071a1deb65))
+
 ## [0.10.4](https://github.com/branes-ai/anatomy/compare/v0.10.3...v0.10.4) (2026-11-04)
 
 
