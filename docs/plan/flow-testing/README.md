@@ -107,7 +107,7 @@ A swap of two firings of one instance where one reads its state and the other up
 
 ### The edge trace
 
-The stack gains an optional observer, set before it runs. After each firing, the stack hands the observer the firing's region, its index, the time, and its out ports. `flow::trace` writes these as a separate file, `<run>.brtrace`, beside the log, whose records are the region, the firing, the port, the time, and the message's bytes as the log's codec encodes them. A port whose message has no codec keeps its region, firing, port and time, and leaves out only the bytes, so `trace_compare` still names it, and compares its time. Every toy message has a codec, so the differential test compares every edge's value.
+The stack gains an optional observer (`stack::observe`), set before it runs. After each firing, the stack hands the observer the firing's region, its index, the time of the input that ran the region, and its out ports: each one's name, message type and message. `flow::trace_writer` (`flow/trace.hpp`) writes these as a separate file, `<run>.brtrace`, beside the log, whose records are the region, the firing, its operator, handler and composite handler, the port, the time, and the message's bytes as the mission's codec encodes them. The core can't name a mission's codecs, so the mission gives them to the trace by message type (`trace_codecs`). A port whose message has no codec keeps its region, firing, port and time, and leaves out only the bytes, so `trace_compare` still names it, and compares its time. Every toy message has a codec, so the differential test compares every edge's value.
 
 `trace_compare` (`apps/`), like `log_compare`, reads two traces and reports the first edge they differ on, by its `region.firing.port`, or that they are equal. It exits 0, 1 or 2, as `log_compare` does.
 
@@ -183,6 +183,6 @@ To be confirmed with this plan's PR.
 | T1: the interpreter and the differential test | [#67](https://github.com/branes-ai/anatomy/pull/67) | open |
 | T2: mutations | [#69](https://github.com/branes-ai/anatomy/pull/69) | open |
 | T3: metamorphic pairs | [#71](https://github.com/branes-ai/anatomy/pull/71) | open |
-| T4: the edge trace | | |
+| T4: the edge trace | [#73](https://github.com/branes-ai/anatomy/pull/73) | open |
 | T5: racing-drone's baselines | | |
 | T6: docs | | |

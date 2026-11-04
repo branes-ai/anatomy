@@ -299,7 +299,8 @@ std::vector<detail::source> builder::fire(scope& s,
                                           std::string_view handler,
                                           const time_of* at,
                                           std::vector<detail::source> in,
-                                          std::span<const detail::slot_factory> outs) {
+                                          std::span<const detail::slot_factory> outs,
+                                          std::span<const std::type_index> types) {
     node_rec& n = nodes_[node];
     const auto it = std::find_if(
         n.handlers.begin(), n.handlers.end(), [&](const detail::handler_info& h) { return h.name == handler; });
@@ -371,7 +372,13 @@ std::vector<detail::source> builder::fire(scope& s,
     }
     region.firings.push_back(Firing{op, h.name, at_input, std::move(refs), std::move(composite), h.state});
 
-    firing_rec run{n.instance, n.thunks.empty() ? nullptr : n.thunks[hi], std::move(in), {}, at_index};
+    firing_rec run{n.instance,
+                   n.thunks.empty() ? nullptr : n.thunks[hi],
+                   std::move(in),
+                   {},
+                   at_index,
+                   h.out,
+                   std::vector<std::type_index>(types.begin(), types.end())};
     std::vector<detail::source> result;
     for (std::size_t k = 0; k < h.out.size(); ++k) {
         detail::source out;
@@ -495,7 +502,7 @@ result<stack, config::ConfigError> builder::build_stack() && {
             if (op == nullptr || f.thunk == nullptr) {
                 return config::ConfigError{graph_.mission, key, "the CPU stack has no operator to fire"};
             }
-            stack::firing run{f.thunk, op, {}, {}, f.at};
+            stack::firing run{f.thunk, op, {}, {}, f.at, f.ports, f.types};
             for (std::size_t k = 0; k < f.in.size(); ++k) {
                 const void* in = resolve(f.in[k]);
                 if (in == nullptr) {

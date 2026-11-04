@@ -63,6 +63,8 @@
 #include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <typeindex>
+#include <typeinfo>
 #include <utility>
 #include <vector>
 
@@ -460,6 +462,14 @@ template <class Types>
     }(std::make_index_sequence<std::tuple_size_v<Types>>{});
 }
 
+/// Each port's message type (or domain), for an observer to encode it by.
+template <class Types>
+[[nodiscard]] std::vector<std::type_index> types_of() {
+    return []<std::size_t... I>(std::index_sequence<I...>) {
+        return std::vector<std::type_index>{std::type_index(typeid(std::tuple_element_t<I, Types>))...};
+    }(std::make_index_sequence<std::tuple_size_v<Types>>{});
+}
+
 template <class Op, class H, class Ins>
 struct callable;
 template <class Op, class H, class... In>
@@ -546,6 +556,22 @@ template <class M>
 
 class builder;
 class stack;
+
+/// One firing, as the stack hands it to its observer, once the firing has
+/// written its out ports: where it is in the graph, the time of the input
+/// that ran its region, and each out port's name, message type and message.
+/// The spans are valid during the call only.
+struct fired {
+    std::size_t region = 0;  ///< its region's index in graph().regions
+    std::size_t firing = 0;  ///< its index in the region's firings
+    Timestamp t;             ///< the region's input's time, or zero if the input has none
+    std::span<const std::string> ports;
+    std::span<const std::type_index> types;
+    std::span<void* const> messages;
+};
+
+/// What a stack calls after each firing, if it is given one (stack::observe).
+using observer = std::function<void(const fired&)>;
 
 /// The region a firing goes into; in a body, also the composite handler the
 /// firing implements.
@@ -650,7 +676,8 @@ public:
                                                    std::string_view handler,
                                                    const time_of* at,
                                                    std::vector<detail::source> in,
-                                                   std::span<const detail::slot_factory> outs);
+                                                   std::span<const detail::slot_factory> outs,
+                                                   std::span<const std::type_index> types);
 
 protected:
     builder(std::string mission, baseline_class kind, bool runs);
@@ -689,6 +716,8 @@ private:
         std::vector<detail::source> in;
         std::vector<std::size_t> out;      ///< slots
         std::size_t at = detail::no_slot;  ///< the input whose time it takes
+        std::vector<std::string> ports;    ///< the out ports' names
+        std::vector<std::type_index> types;
     };
 
     [[nodiscard]] scope region_of(const std::string& input);
@@ -764,6 +793,10 @@ void build_operator(G& g, std::size_t n) {
 /// only while its region runs. Every input's and out port's message is
 /// value-initialized when the stack is built, so a hold, or an output, read
 /// before its region first runs reads that.
+///
+/// An observer, if it is given one, is called after each firing with what the
+/// firing wrote (docs/plan/flow-testing, T4: flow/trace.hpp writes it to a
+/// trace). With none, the stack runs as it does without: one test per firing.
 class stack {
 public:
     stack(stack&&) noexcept = default;
@@ -774,10 +807,16 @@ public:
     /// Hand the stack input `in`'s message, and run its trigger's region, if it has one.
     template <class M>
     void input(const input_port<M>& in, const M& m) {
-        *static_cast<M*>(inputs_[in.index].slot) = m;
-        if (inputs_[in.index].region != detail::no_slot) {
-            run(inputs_[in.index].region);
+        const input_rec& r = inputs_[in.index];
+        *static_cast<M*>(r.slot) = m;
+        if (r.region != detail::no_slot) {
+            run(r.region, observer_ && r.time ? r.time(r.slot) : Timestamp{});
         }
+    }
+
+    /// Call `o` after each firing from now on; an empty `o` stops observing.
+    void observe(observer o) {
+        observer_ = std::move(o);
     }
 
     /// Output `out`'s message, as its region last wrote it.
@@ -804,6 +843,8 @@ private:
         std::vector<const void*> in;
         std::vector<void*> out;
         std::size_t at = detail::no_slot;  ///< the input whose time it takes
+        std::vector<std::string> ports;    ///< the out ports' names
+        std::vector<std::type_index> types;
     };
     struct input_rec {
         void* slot = nullptr;
@@ -811,10 +852,16 @@ private:
         std::function<Timestamp(const void*)> time;
     };
 
-    void run(std::size_t region) {
-        for (const firing& f : regions_[region]) {
+    /// Run a region; `now` is its input's time, for the observer.
+    void run(std::size_t region, Timestamp now) {
+        const std::vector<firing>& fs = regions_[region];
+        for (std::size_t i = 0; i < fs.size(); ++i) {
+            const firing& f = fs[i];
             const Timestamp t = f.at == detail::no_slot ? Timestamp{} : inputs_[f.at].time(inputs_[f.at].slot);
             f.thunk(f.op, f.in.data(), f.out.data(), t);
+            if (observer_) {
+                observer_(fired{region, i, now, f.ports, f.types, f.out});
+            }
         }
     }
 
@@ -825,6 +872,7 @@ private:
     std::vector<const void*> outputs_;
     Graph graph_;
     std::string hash_;
+    observer observer_;
 };
 
 // ── The typed functions ─────────────────────────────────────────────
@@ -933,8 +981,9 @@ template <class H, class B, class... S>
     static_assert(messages_match<in_types, S...>(),
                   "G4: an edge joins two ports of one message type, when both have one");
     static const std::vector<slot_factory> factories = factories_of<out_types>();
+    static const std::vector<std::type_index> types = types_of<out_types>();
     const std::vector<source> outs =
-        s.owner().fire(s, node, H::name, at, std::vector<source>{source_of(sources)...}, factories);
+        s.owner().fire(s, node, H::name, at, std::vector<source>{source_of(sources)...}, factories, types);
     return values_of<out_types>(outs);
 }
 }  // namespace detail
