@@ -100,10 +100,10 @@ G8's other half is the baseline file's, which `check_baseline()` checks against 
 Each pair is two recipes from one seed, whose records must be equal and whose hashes must differ:
 
 1. **A body against a research graph:** a scoreboard recipe, and the research recipe that places the bodies' operators as instances of their own, with the same wiring.
-2. **Independent firings reordered:** two adjacent firings in a region that share no value and no instance, swapped.
-3. **Renamed:** every instance and every region's out port renamed.
+2. **Independent firings reordered:** two adjacent firings in a region that share no value and no instance, swapped. Adjacent in the recipe's order, so every source is still described before it is read.
+3. **Renamed:** every node, input, constant and external output renamed. An operator's out ports are its binding's, so they keep their names.
 
-A swap of two firings of one instance where one reads its state and the other updates it is checked the other way: the builder accepts both orders, and the records may differ. That's P5, which the interpreter checks.
+A swap of two firings of one instance where one reads its state and the other updates it is checked the other way: the builder accepts both orders, and the records may differ. That's P5, which the interpreter checks. A test built by hand also checks that the two orders differ: the read before the update sees the state the update replaces.
 
 ### The edge trace
 
@@ -182,7 +182,7 @@ To be confirmed with this plan's PR.
 | This plan | [#65](https://github.com/branes-ai/anatomy/pull/65) | merged |
 | T1: the interpreter and the differential test | [#67](https://github.com/branes-ai/anatomy/pull/67) | open |
 | T2: mutations | [#69](https://github.com/branes-ai/anatomy/pull/69) | open |
-| T3: metamorphic pairs | | |
+| T3: metamorphic pairs | [#71](https://github.com/branes-ai/anatomy/pull/71) | open |
 | T4: the edge trace | | |
 | T5: racing-drone's baselines | | |
 | T6: docs | | |
