@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.4](https://github.com/branes-ai/anatomy/compare/v0.10.3...v0.10.4) (2026-11-04)
+
+
+### Tests
+
+* **flow:** check that meaning-preserving changes keep the records ([#71](https://github.com/branes-ai/anatomy/issues/71)) ([344fa4b](https://github.com/branes-ai/anatomy/commit/344fa4bb0ab6daf0e42e89c5f6e15362fdd381c5))
+
 ## [0.10.3](https://github.com/branes-ai/anatomy/compare/v0.10.2...v0.10.3) (2026-11-04)
 
 
