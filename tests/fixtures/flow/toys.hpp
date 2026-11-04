@@ -10,10 +10,13 @@
 #include <branes/anatomy/flow/builder.hpp>
 #include <branes/anatomy/flow/domains.hpp>
 #include <branes/anatomy/msg/time.hpp>
+#include <branes/anatomy/util/bytes.hpp>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <tuple>
+#include <vector>
 
 namespace toys {
 
@@ -33,6 +36,22 @@ struct Two {
     Num a;
     Num b;
 };
+
+/// The toys' codec, for their traces: each field, little-endian (util/bytes.hpp).
+[[nodiscard]] inline std::vector<std::byte> encode(const Num& x) {
+    branes::anatomy::ByteWriter w;
+    w.i64(x.t.ns);
+    w.u64(x.v);
+    return w.take();
+}
+[[nodiscard]] inline std::vector<std::byte> encode(const Two& x) {
+    branes::anatomy::ByteWriter w;
+    w.i64(x.a.t.ns);
+    w.u64(x.a.v);
+    w.i64(x.b.t.ns);
+    w.u64(x.b.v);
+    return w.take();
+}
 
 /// The mixing function every toy operator computes with: splitmix64 of x,
 /// keyed by the salt.

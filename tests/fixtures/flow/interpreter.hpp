@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -75,6 +76,13 @@ public:
 
     [[nodiscard]] const fl::Graph& graph() const noexcept {
         return g_;
+    }
+
+    /// The value firing `firing` of region `region` last wrote to `port`, or none if it hasn't.
+    [[nodiscard]] std::optional<Value>
+    edge(const std::string& region, std::size_t firing, const std::string& port) const {
+        const auto it = values_.find(Key{region, firing, port});
+        return it == values_.end() ? std::nullopt : std::optional<Value>(it->second);
     }
 
 private:
