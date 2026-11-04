@@ -114,7 +114,7 @@ struct Graph {
 [[nodiscard]] std::string graph_hash(const Graph& g);
 
 /// The graph as a Mermaid flowchart, for reading: a subgraph per region with
-/// its firings in order, a node per input, constant and output, and an edge
+/// its firings in order, each labelled with its index, a node per input, constant and output, and an edge
 /// per in port, labelled with the port and the fields projected. An edge
 /// that holds across regions is dotted. It is not hashed; canonical() is.
 [[nodiscard]] std::string mermaid(const Graph& g);

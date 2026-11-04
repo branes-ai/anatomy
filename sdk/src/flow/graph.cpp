@@ -563,11 +563,15 @@ std::string graph_hash(const Graph& g) {
 
 namespace {
 
-/// `s` as Mermaid text inside double quotes.
+/// `s` as Mermaid text inside double quotes. `#` starts an entity, so it is
+/// one too.
 std::string mermaid_text(std::string_view s) {
     std::string t;
     for (const char c : s) {
         switch (c) {
+        case '#':
+            t += "#35;";
+            break;
         case '"':
             t += "#quot;";
             break;
@@ -644,8 +648,10 @@ std::string mermaid(const Graph& g) {
             if (f.state != state_role::none) {
                 notes += (notes.empty() ? "" : ", ") + text(f.state);
             }
-            // The <br/> is Mermaid's line break; the names are escaped.
-            nodes += "        " + id + "[\"" + mermaid_text(call) + (f.at.empty() ? "" : "@" + mermaid_text(f.at)) +
+            // The label leads with the firing's place in its region's order. The
+            // <br/> is Mermaid's line break; the names are escaped.
+            nodes += "        " + id + "[\"" + std::to_string(i) + ": " + mermaid_text(call) +
+                     (f.at.empty() ? "" : "@" + mermaid_text(f.at)) +
                      (notes.empty() ? "" : "<br/>" + mermaid_text(notes)) + "\"]\n";
             if (!f.at.empty()) {
                 Ref time;
@@ -664,7 +670,11 @@ std::string mermaid(const Graph& g) {
         edges += edge(g.outputs[o].from, id);
     }
 
-    std::string s = "flowchart LR\n    %% flow-graph " + g.mission + ", " +
+    // A line break in the mission's name would end the comment.
+    std::string mission = g.mission;
+    std::replace(mission.begin(), mission.end(), '\n', ' ');
+    std::replace(mission.begin(), mission.end(), '\r', ' ');
+    std::string s = "flowchart LR\n    %% flow-graph " + mission + ", " +
                     (g.kind == baseline_class::scoreboard ? "scoreboard" : "research") +
                     (g.sitl_only ? ", SITL-only" : "") + "\n";
     for (std::size_t i = 0; i < inputs.size(); ++i) {

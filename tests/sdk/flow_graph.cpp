@@ -557,18 +557,18 @@ TEST_CASE("flow graph: the mermaid flowchart", "[flow][graph]") {
     in3(["marks"])
     k0[("limits")]
     subgraph r0["region imu"]
-        r0f0["estimator.imu<br/>update"]
+        r0f0["0: estimator.imu<br/>update"]
     end
     subgraph r1["region frame"]
-        r1f0["estimator.estimate@frame<br/>read"]
-        r1f1["estimator.frame<br/>update"]
-        r1f2["monitor.update<br/>update"]
+        r1f0["0: estimator.estimate@frame<br/>read"]
+        r1f1["1: estimator.frame<br/>update"]
+        r1f2["2: monitor.update<br/>update"]
     end
     subgraph r2["region tick"]
-        r2f0["estimator.estimate@tick<br/>read"]
-        r2f1["monitor.alerts<br/>read"]
-        r2f2["controller.step"]
-        r2f3["safety_filter.filter"]
+        r2f0["0: estimator.estimate@tick<br/>read"]
+        r2f1["1: monitor.alerts<br/>read"]
+        r2f2["2: controller.step"]
+        r2f3["3: safety_filter.filter"]
     end
     out0[/"estimate"/]
     out1[/"command"/]
@@ -591,18 +591,21 @@ TEST_CASE("flow graph: the mermaid flowchart", "[flow][graph]") {
 
     // A body's firings name the composite handler they implement.
     const std::string body = mermaid(body_graph());
-    CHECK(body.find(R"(r2f2["controller.gain.apply<br/>controller.step"])") != std::string::npos);
-    CHECK(body.find(R"(r2f3["controller.track.step<br/>controller.step"])") != std::string::npos);
+    CHECK(body.find(R"(r2f2["2: controller.gain.apply<br/>controller.step"])") != std::string::npos);
+    CHECK(body.find(R"(r2f3["3: controller.track.step<br/>controller.step"])") != std::string::npos);
 
     // A research graph has no composites to name; a SITL-only graph says so;
-    // and a name is escaped.
+    // a name is escaped, `#` too, and the mission's stays on its comment line.
     CHECK(mermaid(research_graph()).find("<br/>controller") == std::string::npos);
     Graph g = scoreboard_graph();
     g.sitl_only = true;
+    g.mission = "two\nlines";
     g.outputs[0].name = "a\"b<c>";
+    g.outputs[1].name = "a#quot;b";
     const std::string sitl = mermaid(g);
-    CHECK(sitl.find("%% flow-graph test, scoreboard, SITL-only\n") != std::string::npos);
+    CHECK(sitl.find("%% flow-graph two lines, scoreboard, SITL-only\n") != std::string::npos);
     CHECK(sitl.find(R"(out0[/"a#quot;b#lt;c#gt;"/])") != std::string::npos);
+    CHECK(sitl.find(R"(out1[/"a#35;quot;b"/])") != std::string::npos);
 }
 
 TEST_CASE("flow graph: --print-graph prints the text or the flowchart", "[flow][graph]") {

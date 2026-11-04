@@ -11,7 +11,7 @@ Both are declared in `flow/graph.hpp`.
 
 ## Printing a graph
 
-A mission's graph harnesses take `--print-graph text` or `--print-graph mermaid`. They build the stack, print its graph and exit, without running. `harness::print_graph` (`harness/graph.hpp`) writes the form named, and returns the error text for any other:
+`harness::print_graph` (`harness/graph.hpp`) writes a graph in the form named, `text` or `mermaid`, and returns the error text for any other. It is for the missions' graph harnesses, which take `--print-graph text` or `--print-graph mermaid` once they wire it: they build the stack, print its graph and exit, without running. Until a mission does, its graph can be printed from code:
 
 ```cpp
 #include <branes/anatomy/harness/graph.hpp>
@@ -32,7 +32,7 @@ To view the flowchart, paste it into a ` ```mermaid ` block of a markdown file o
 ## Reading the flowchart
 
 - **Regions:** each region is a subgraph named after its trigger, with its firings in the order they run.
-- **Firings:** each firing is a box labelled `operator.handler`, plus `@input` for a time handler. Its second line names the composite handler it implements, when that differs from the call, and whether it reads or updates its operator's state.
+- **Firings:** each firing is a box labelled with its index in the region's order and `operator.handler`, plus `@input` for a time handler. Its second line names the composite handler it implements, when that differs from the call, and whether it reads or updates its operator's state.
 - **Inputs, constants and outputs:** an input is a rounded node, a constant a cylinder and an output a slanted box.
 - **Edges:**
   - An edge is labelled with the out port it reads, and with the fields projected from it (`.ceiling`).
@@ -50,18 +50,18 @@ flowchart LR
     in3(["marks"])
     k0[("limits")]
     subgraph r0["region imu"]
-        r0f0["estimator.imu<br/>update"]
+        r0f0["0: estimator.imu<br/>update"]
     end
     subgraph r1["region frame"]
-        r1f0["estimator.estimate@frame<br/>read"]
-        r1f1["estimator.frame<br/>update"]
-        r1f2["monitor.update<br/>update"]
+        r1f0["0: estimator.estimate@frame<br/>read"]
+        r1f1["1: estimator.frame<br/>update"]
+        r1f2["2: monitor.update<br/>update"]
     end
     subgraph r2["region tick"]
-        r2f0["estimator.estimate@tick<br/>read"]
-        r2f1["monitor.alerts<br/>read"]
-        r2f2["controller.step"]
-        r2f3["safety_filter.filter"]
+        r2f0["0: estimator.estimate@tick<br/>read"]
+        r2f1["1: monitor.alerts<br/>read"]
+        r2f2["2: controller.step"]
+        r2f3["3: safety_filter.filter"]
     end
     out0[/"estimate"/]
     out1[/"command"/]

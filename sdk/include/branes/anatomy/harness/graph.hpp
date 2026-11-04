@@ -3,8 +3,9 @@
 /// @brief `--print-graph <form>`: a graph build's harness prints the graph it
 /// built, and exits.
 ///
-/// Every mission's graph builds take the option, with the same forms, so a
-/// graph can be read from any of them (anatomy docs/guides/reading-a-graph.md).
+/// The helper is here for the missions' graph harnesses, which take the
+/// option once they wire it, with the same forms in each (anatomy
+/// docs/guides/reading-a-graph.md).
 
 #include <branes/anatomy/flow/graph.hpp>
 
