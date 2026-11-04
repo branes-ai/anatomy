@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/branes-ai/anatomy/compare/v0.9.3...v0.10.0) (2026-11-04)
+
+
+### Features
+
+* **flow:** print a graph as text or as a mermaid flowchart ([#62](https://github.com/branes-ai/anatomy/issues/62)) ([ca08773](https://github.com/branes-ai/anatomy/commit/ca08773938c1edaf77a153265009cd03b57f0482))
+
 ## [0.9.3](https://github.com/branes-ai/anatomy/compare/v0.9.2...v0.9.3) (2026-11-03)
 
 
