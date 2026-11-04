@@ -10,6 +10,7 @@
 #include <branes/anatomy/flow/builder.hpp>
 #include <branes/anatomy/flow/domains.hpp>
 #include <branes/anatomy/flow/graph.hpp>
+#include <branes/anatomy/harness/graph.hpp>
 #include <branes/anatomy/msg/camera.hpp>
 
 #include "../fixtures/flow/test_mission.hpp"
@@ -19,6 +20,7 @@
 #include <array>
 #include <filesystem>
 #include <functional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -540,6 +542,85 @@ TEST_CASE("flow graph: G9 a graph that reads a SITL-only input is SITL-only", "[
     });
     CHECK(g.sitl_only);
     CHECK(graph_hash(g) != graph_hash(research_graph()));
+}
+
+// ── The Mermaid flowchart ───────────────────────────────────────────
+
+TEST_CASE("flow graph: the mermaid flowchart", "[flow][graph]") {
+    // A subgraph per region, its firings in order; a node per input, constant
+    // and output; an edge per in port, dotted where it holds.
+    CHECK(mermaid(scoreboard_graph()) == R"(flowchart LR
+    %% flow-graph test, scoreboard
+    in0(["imu"])
+    in1(["frame"])
+    in2(["tick"])
+    in3(["marks"])
+    k0[("limits")]
+    subgraph r0["region imu"]
+        r0f0["0: estimator.imu<br/>update"]
+    end
+    subgraph r1["region frame"]
+        r1f0["0: estimator.estimate@frame<br/>read"]
+        r1f1["1: estimator.frame<br/>update"]
+        r1f2["2: monitor.update<br/>update"]
+    end
+    subgraph r2["region tick"]
+        r2f0["0: estimator.estimate@tick<br/>read"]
+        r2f1["1: monitor.alerts<br/>read"]
+        r2f2["2: controller.step"]
+        r2f3["3: safety_filter.filter"]
+    end
+    out0[/"estimate"/]
+    out1[/"command"/]
+    in0 --> r0f0
+    in1 -->|"time"| r1f0
+    in1 --> r1f1
+    r1f0 -->|"estimate"| r1f2
+    in2 -->|"time"| r2f0
+    r2f0 -->|"estimate"| r2f1
+    r2f0 -->|"estimate"| r2f2
+    k0 --> r2f2
+    r2f1 -->|"alerts"| r2f2
+    in3 -.->|"hold"| r2f2
+    r2f0 -->|"estimate"| r2f3
+    r2f2 -->|"command"| r2f3
+    k0 -->|".ceiling"| r2f3
+    r2f0 -->|"estimate"| out0
+    r2f3 -->|"safe_command"| out1
+)");
+
+    // A body's firings name the composite handler they implement.
+    const std::string body = mermaid(body_graph());
+    CHECK(body.find(R"(r2f2["2: controller.gain.apply<br/>controller.step"])") != std::string::npos);
+    CHECK(body.find(R"(r2f3["3: controller.track.step<br/>controller.step"])") != std::string::npos);
+
+    // A research graph has no composites to name; a SITL-only graph says so;
+    // a name is escaped, `#` too, and the mission's stays on its comment line.
+    CHECK(mermaid(research_graph()).find("<br/>controller") == std::string::npos);
+    Graph g = scoreboard_graph();
+    g.sitl_only = true;
+    g.mission = "two\nlines";
+    g.outputs[0].name = "a\"b<c>";
+    g.outputs[1].name = "a#quot;b";
+    const std::string sitl = mermaid(g);
+    CHECK(sitl.find("%% flow-graph two lines, scoreboard, SITL-only\n") != std::string::npos);
+    CHECK(sitl.find(R"(out0[/"a#quot;b#lt;c#gt;"/])") != std::string::npos);
+    CHECK(sitl.find(R"(out1[/"a#35;quot;b"/])") != std::string::npos);
+}
+
+TEST_CASE("flow graph: --print-graph prints the text or the flowchart", "[flow][graph]") {
+    const Graph g = scoreboard_graph();
+    std::ostringstream text;
+    CHECK_FALSE(harness::print_graph(g, "text", text));
+    CHECK(text.str() == canonical(g));
+    std::ostringstream chart;
+    CHECK_FALSE(harness::print_graph(g, "mermaid", chart));
+    CHECK(chart.str() == mermaid(g));
+    std::ostringstream none;
+    const auto e = harness::print_graph(g, "dot", none);
+    REQUIRE(e);
+    CHECK(*e == "--print-graph takes text or mermaid, not 'dot'");
+    CHECK(none.str().empty());
 }
 
 // ── The camera frame's domain ───────────────────────────────────────
