@@ -122,6 +122,20 @@ struct Rec {
     }
 };
 
+/// Two updates of one state, for the mutations only (T2): a region that
+/// fires both breaks G5. The generator never draws it, and it never runs.
+template <std::uint64_t S>
+struct Acc {
+    std::uint64_t sum = 0;
+
+    void add(const Num& x) {
+        sum = mix(sum + x.v, S);
+    }
+    void scale(const Num& x) {
+        sum = mix(sum * x.v, S);
+    }
+};
+
 // ── Bindings ────────────────────────────────────────────────────────
 
 struct UnaryBinding {
@@ -196,6 +210,22 @@ struct RecBinding {
     using handlers = fl::handlers<apply>;
 };
 
+/// Its out port is unused: a signature has one (S2).
+struct AccBinding {
+    using signature = fl::signature<fl::ports<port<"x", Num, direction::in>, port<"y", Num, direction::out>>>;
+    struct add : fl::handler<"add", ins<"x">, outs<>, state_role::update> {
+        static void call(auto& op, const Num& x) {
+            op.add(x);
+        }
+    };
+    struct scale : fl::handler<"scale", ins<"x">, outs<>, state_role::update> {
+        static void call(auto& op, const Num& x) {
+            op.scale(x);
+        }
+    };
+    using handlers = fl::handlers<add, scale>;
+};
+
 // ── The registry: each kind, once per salt ──────────────────────────
 
 using Unary1 = fl::registered<"Unary1", Unary<1>, UnaryBinding>;
@@ -216,6 +246,7 @@ using Pair3 = fl::registered<"Pair3", Pair<3>, PairBinding>;
 using Rec1 = fl::registered<"Rec1", Rec<1>, RecBinding>;
 using Rec2 = fl::registered<"Rec2", Rec<2>, RecBinding>;
 using Rec3 = fl::registered<"Rec3", Rec<3>, RecBinding>;
+using Acc1 = fl::registered<"Acc1", Acc<1>, AccBinding>;
 
 // ── Bodies of several operators ─────────────────────────────────────
 
