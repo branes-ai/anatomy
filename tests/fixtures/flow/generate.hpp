@@ -126,6 +126,7 @@ struct Recipe {
     std::optional<std::size_t> second_region;  ///< an input whose trigger is given a second region
     bool unproduced = false;                   ///< an output, "ox", that nothing produces
     bool produced_twice = false;               ///< the first output produced again
+    std::string output_prefix = "o";           ///< what the outputs are named, with their index
 };
 
 [[nodiscard]] inline std::string to_string(const Recipe& r) {
@@ -314,12 +315,24 @@ private:
 
 using Input = std::variant<fl::input_port<Num>, fl::input_port<Timestamp>>;
 
+/// Where an output's value comes from: a firing of the recipe, its out
+/// port, and the field projected from a record (or -1).
+struct Origin {
+    std::size_t firing = 0;
+    std::size_t port = 0;
+    int field = -1;
+
+    friend bool operator==(const Origin&, const Origin&) = default;
+};
+
 /// A recipe's stack, its inputs in the recipe's order, and its outputs: one
-/// per value each firing writes, a record's two fields each.
+/// per value each firing writes, a record's two fields each, with where
+/// each comes from.
 struct Built {
     fl::stack stack;
     std::vector<Input> inputs;
     std::vector<fl::output_port<Num>> outputs;
+    std::vector<Origin> origins;
 };
 
 namespace detail {
@@ -464,6 +477,7 @@ inline std::vector<Out> fire(fl::scope& s, const Node& n, std::size_t h, const I
 
     std::vector<std::vector<detail::Out>> written;
     std::vector<fl::output_port<Num>> outputs;
+    std::vector<Origin> origins;
     std::optional<fl::value<Num>> first;  ///< what the first output is produced from
     for (std::size_t i = 0; i < r.firings.size(); ++i) {
         const FiringSpec& f = r.firings[i];
@@ -496,21 +510,23 @@ inline std::vector<Out> fire(fl::scope& s, const Node& n, std::size_t h, const I
             *scopes[f.region], nodes[f.node], f.handler, inputs[at == r.at.end() ? f.region : at->second], in));
 
         // An output for every value the firing writes.
-        const auto output = [&](const fl::value<Num>& v) {
-            const std::string name = "o" + std::to_string(outputs.size());
+        const auto output = [&](const fl::value<Num>& v, std::size_t port, int field) {
+            origins.push_back(Origin{i, port, field});
+            const std::string name = r.output_prefix + std::to_string(outputs.size());
             outputs.push_back(std::visit([&](const auto& p) { return fl::output<Num>(g, name, p); }, inputs[f.region]));
             g.produce(outputs.back(), v);
             if (!first) {
                 first = v;
             }
         };
-        for (const detail::Out& o : written.back()) {
+        for (std::size_t p = 0; p < written.back().size(); ++p) {
+            const detail::Out& o = written.back()[p];
             if (const auto* v = std::get_if<fl::value<Num>>(&o)) {
-                output(*v);
+                output(*v, p, -1);
             } else {
                 const auto& rec = std::get<fl::value<Two>>(o);
-                output(fl::project<"a", &Two::a>(rec));
-                output(fl::project<"b", &Two::b>(rec));
+                output(fl::project<"a", &Two::a>(rec), p, 0);
+                output(fl::project<"b", &Two::b>(rec), p, 1);
             }
         }
     }
@@ -526,7 +542,7 @@ inline std::vector<Out> fire(fl::scope& s, const Node& n, std::size_t h, const I
     if (!st) {
         return st.error();
     }
-    return Built{std::move(st).value(), std::move(inputs), std::move(outputs)};
+    return Built{std::move(st).value(), std::move(inputs), std::move(outputs), std::move(origins)};
 }
 
 }  // namespace gen
