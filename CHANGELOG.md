@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.2](https://github.com/branes-ai/anatomy/compare/v0.10.1...v0.10.2) (2026-11-04)
+
+
+### Tests
+
+* **flow:** run random graphs against a reference interpreter ([#67](https://github.com/branes-ai/anatomy/issues/67)) ([356fe54](https://github.com/branes-ai/anatomy/commit/356fe544efe340b6da77a4f1f5fcfd26df3e0791))
+
 ## [0.10.1](https://github.com/branes-ai/anatomy/compare/v0.10.0...v0.10.1) (2026-11-04)
 
 
