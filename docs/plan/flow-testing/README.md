@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 issue: branes-ai/anatomy#64
 ---
 # Plan: testing the flow graph beyond equality with the slot stack
@@ -64,7 +64,7 @@ Each operator is a template over a salt, registered once per salt (`Unary1`, `Un
 
 `tests/fixtures/flow/interpreter.hpp` runs a checked `flow::Graph` directly. It takes the graph and the constants' values, which the `Graph` doesn't hold: the test hands the interpreter the values its recipe gave the builder. It keeps every value in a map from `(region, firing, port)`, from an input's name and from a constant's name. On each input it walks that input's region: for each `Firing`, it resolves each `Ref`, projects its path, calls the toy operator, and its salt, that the `Instance` names, and stores the outputs. It implements the toy operators again, from the table above, without including their headers, so a bug shared by the operators and their bindings isn't hidden. It is slow and dynamic on purpose. It knows the toy operators only, and runs no mission's graph.
 
-That the interpreter needs nothing but the `Graph`, the operators' definitions and the constants' values is property P2.
+That the interpreter needs nothing but the `Graph`, the operators' definitions and the constants' values is property P2. T1 found one more fact it needs: the `Graph` names its regions' triggers, but not its inputs, so the interpreter takes an input's region to be the one whose trigger is the input's name. That holds for an input declared with no trigger of its own, as every generated input is.
 
 ### The generator
 
@@ -170,7 +170,7 @@ To be confirmed with this plan's PR.
 ## Not in this plan
 
 - **`accumulate` and `queue` rate rules, declared state domains (ADR 0004, decision 4), and conditional regions.** Each is a feature with its own plan. The interpreter is written to take a rate rule at a time, so each gains its oracle with it.
-- **The export for the domain flow compiler** (step 4). The `Graph` value names no edge's domain, which the export needs, and holds no constant's value. T1's interpreter checks that it is otherwise complete (P2).
+- **The export for the domain flow compiler** (step 4). The `Graph` value names no edge's domain, which the export needs, and holds no constant's value, and no input or its trigger. T1's interpreter checks that it is otherwise complete (P2).
 - **A flight build that refuses a graph reading truth (SYS-02).** No mission has a flight target yet.
 - **Performance.** The cost of the stack's indirect calls against the slot stack's direct ones is worth measuring, but isn't a correctness property, and gates nothing here.
 
@@ -178,8 +178,8 @@ To be confirmed with this plan's PR.
 
 | Step | PR | State |
 |---|---|---|
-| This plan | [#65](https://github.com/branes-ai/anatomy/pull/65) | open |
-| T1: the interpreter and the differential test | | |
+| This plan | [#65](https://github.com/branes-ai/anatomy/pull/65) | merged |
+| T1: the interpreter and the differential test | | open |
 | T2: mutations | | |
 | T3: metamorphic pairs | | |
 | T4: the edge trace | | |
