@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/branes-ai/anatomy/compare/v0.10.0...v0.10.1) (2026-11-04)
+
+
+### Documentation
+
+* **plan:** test the flow graph beyond equality with the slot stack ([#65](https://github.com/branes-ai/anatomy/issues/65)) ([aa9386f](https://github.com/branes-ai/anatomy/commit/aa9386f97bb56cad42d0aca85b5bfd9d24756866))
+
 ## [0.10.0](https://github.com/branes-ai/anatomy/compare/v0.9.3...v0.10.0) (2026-11-04)
 
 
