@@ -2,7 +2,8 @@
 
 ```text
 anatomy/
-├── apps/         # the tools a mission's gates run: log_compare, two logs equal but for the header fields left out
+├── apps/         # the tools a mission's gates run: log_compare, two logs equal but for the header fields left out;
+│                 #   trace_compare, the first edge two edge traces differ on
 ├── cmake/        # deps, warnings, test registration (compile_all), composition and flow (a mission's baselines)
 ├── docs/         # the documents: the source of this site
 ├── docs-site/    # the Starlight site generated from docs/, published to GitHub Pages

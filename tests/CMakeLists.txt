@@ -68,6 +68,19 @@ add_test(NAME apps.log_compare
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/apps_log_compare
         -P ${CMAKE_CURRENT_SOURCE_DIR}/apps/log_compare_test.cmake)
 
+# trace_compare's exit codes and messages, on traces write_traces writes
+# (docs/plan/flow-testing, T4).
+add_executable(trace_compare_write_traces ${CMAKE_CURRENT_SOURCE_DIR}/apps/write_traces.cpp)
+target_link_libraries(trace_compare_write_traces PRIVATE branes::anatomy)
+anatomy_set_warnings(trace_compare_write_traces)
+set_target_properties(trace_compare_write_traces PROPERTIES FOLDER "Tests/apps")
+add_test(NAME apps.trace_compare
+    COMMAND ${CMAKE_COMMAND}
+        -DWRITE_TRACES=$<TARGET_FILE:trace_compare_write_traces>
+        -DTRACE_COMPARE=$<TARGET_FILE:anatomy_trace_compare>
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/apps_trace_compare
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/apps/trace_compare_test.cmake)
+
 # ── Scalar types ───────────────────────────────────────────────────────────
 # The casts and the contracts in every type of the precision sweep
 # (sim/sweep_types.hpp); these tests link Universal.
