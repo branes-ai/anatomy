@@ -181,7 +181,7 @@ To be confirmed with this plan's PR.
 |---|---|---|
 | This plan | [#65](https://github.com/branes-ai/anatomy/pull/65) | merged |
 | T1: the interpreter and the differential test | [#67](https://github.com/branes-ai/anatomy/pull/67) | open |
-| T2: mutations | | open |
+| T2: mutations | [#69](https://github.com/branes-ai/anatomy/pull/69) | open |
 | T3: metamorphic pairs | | |
 | T4: the edge trace | | |
 | T5: racing-drone's baselines | | |
