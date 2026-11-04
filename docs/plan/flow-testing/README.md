@@ -32,7 +32,7 @@ Each property has an id, which the tests name.
 | Id | Property | Tested today |
 |---|---|---|
 | P1 | **Execution:** for any checked graph and any input stream, `flow::stack` writes what the graph says: each region's firings in their order, each in port read from its `Ref`, and each `hold` the value its region last wrote | by equality with the slot stack, on the missions' graphs |
-| P2 | **The graph value is complete:** the checked `flow::Graph` alone, with the operators' definitions, determines the outputs. This is what the export relies on | no |
+| P2 | **The graph value is complete but for its values:** the checked `flow::Graph`, with the operators' definitions and the constants' values, determines the outputs. The export relies on the first two; the constants come from the baseline, as parameters do | no |
 | P3 | **Determinism:** the same graph and inputs give the same records, run to run and across GCC, Clang and MSVC | by the missions' determinism gates |
 | P4 | **`hold` before its first write** reads the message's value-initialized state, and that is the documented behavior | no |
 | P5 | **State order:** a read of an operator's state before its update in a region sees the previous firing's state, and one after it sees the new state | by the builder's G5 check; not run |
@@ -51,20 +51,20 @@ The random graphs are built from a small set of operators in `tests/fixtures/flo
 
 | Operator | Handlers | State |
 |---|---|---|
-| `Unary` | `apply(x) -> y`: a fixed mix of x and the operator's seed | none |
+| `Unary` | `apply(x) -> y`: a fixed mix of x and the operator's salt | none |
 | `Binary` | `apply(x, y) -> z` | none |
 | `Counter` | `update(x)` adds x to its sum; `read() -> sum` | update, read |
 | `Clock` | `at(t) -> y`, a time handler | none |
 | `Pair` | `apply(x) -> (y, z)`, two out ports | none |
 | `Rec` | `apply(x) -> r`, a record of two fields, so that a source can project one | none |
 
-Each operator takes a seed, so that two instances of one operator compute different functions, and an edge read from the wrong instance shows up in the records.
+Each operator is a template over a salt, registered once per salt (`Unary1`, `Unary2`, ...), so that two operators of one kind compute different functions, and an edge read from the wrong instance shows up in the records. The salt is in the operator's registered name, which the `Graph` holds, so it needs no context: the stack builder builds every toy operator from an empty one.
 
 ### The reference interpreter
 
-`tests/fixtures/flow/interpreter.hpp` runs a checked `flow::Graph` directly. It keeps every value in a map from `(region, firing, port)`, from an input's name and from a constant's name. On each input it walks that input's region: for each `Firing`, it resolves each `Ref`, projects its path, calls the toy operator named by the `Instance`, and stores the outputs. It implements the toy operators again, from the table above, without including their headers, so a bug shared by the operators and their bindings isn't hidden. It is slow and dynamic on purpose. It knows the toy operators only, and runs no mission's graph.
+`tests/fixtures/flow/interpreter.hpp` runs a checked `flow::Graph` directly. It takes the graph and the constants' values, which the `Graph` doesn't hold: the test hands the interpreter the values its recipe gave the builder. It keeps every value in a map from `(region, firing, port)`, from an input's name and from a constant's name. On each input it walks that input's region: for each `Firing`, it resolves each `Ref`, projects its path, calls the toy operator, and its salt, that the `Instance` names, and stores the outputs. It implements the toy operators again, from the table above, without including their headers, so a bug shared by the operators and their bindings isn't hidden. It is slow and dynamic on purpose. It knows the toy operators only, and runs no mission's graph.
 
-That the interpreter needs nothing but the `Graph` and the operators' definitions is property P2.
+That the interpreter needs nothing but the `Graph`, the operators' definitions and the constants' values is property P2.
 
 ### The generator
 
@@ -88,9 +88,11 @@ A mutation changes one thing in a valid recipe so that it breaks one invariant:
 | G5 | a second update of an instance's state in one region |
 | G6 | a second region for a trigger; a time handler fired at an input of another region; a handler that never fires; a handler fired twice at one input |
 | G7 | an edge between regions with no rate rule; a rate rule on an edge within a region, or from a constant |
-| G8 | an instance outside a body in a scoreboard graph; a composite in a research graph; a baseline file that names a body for a composite the graph doesn't have, or none for one it has |
+| G8 | an instance outside a body in a scoreboard graph; a composite in a research graph |
 
 The builder must refuse each mutated recipe, and its `ConfigError` must name the invariant and the node or firing the mutation changed. A mutation the builder accepts, or refuses for another reason, fails the test.
+
+G8's other half is the baseline file's, which `check_baseline()` checks against a built graph, not the builder. Those mutations change the file, not the recipe: a file that names a body for a composite the graph doesn't have, or none for one it has, or the wrong class. `check_baseline()` must refuse each, against the valid graph built from the recipe, naming G8 and the composite.
 
 ### Metamorphic pairs
 
@@ -104,7 +106,7 @@ A swap of two firings of one instance where one reads its state and the other up
 
 ### The edge trace
 
-The stack gains an optional observer, set before it runs. After each firing, the stack hands the observer the firing's region, its index, the time, and its out ports. `flow::trace` writes these as a separate file, `<run>.brtrace`, beside the log, whose records are the region, the firing, the port, the time, and the message's bytes as the log's codec encodes them. A port whose message has no codec is traced by its region, firing and time only.
+The stack gains an optional observer, set before it runs. After each firing, the stack hands the observer the firing's region, its index, the time, and its out ports. `flow::trace` writes these as a separate file, `<run>.brtrace`, beside the log, whose records are the region, the firing, the port, the time, and the message's bytes as the log's codec encodes them. A port whose message has no codec keeps its region, firing, port and time, and leaves out only the bytes, so `trace_compare` still names it, and compares its time. Every toy message has a codec, so the differential test compares every edge's value.
 
 `trace_compare` (`apps/`), like `log_compare`, reads two traces and reports the first edge they differ on, by its `region.firing.port`, or that they are equal. It exits 0, 1 or 2, as `log_compare` does.
 
@@ -121,7 +123,7 @@ The oracle for each is a test that wires the same operators by hand, in the orde
 
 ## Acceptance
 
-Five PRs, each accepted on its own criteria. T1 to T4 are anatomy's, and T5 is racing-drone's, on the anatomy release that has T4.
+Six PRs, each accepted on its own criteria. T1 to T4 are anatomy's, T5 is racing-drone's, on the anatomy release that has T4, and T6 is the docs in both.
 
 **T1, anatomy: the interpreter and the differential test.**
 1. The toy operators, the interpreter and the generator (`tests/fixtures/flow/`).
@@ -132,7 +134,8 @@ Five PRs, each accepted on its own criteria. T1 to T4 are anatomy's, and T5 is r
 
 **T2, anatomy: mutations.**
 1. The mutations above, applied to each of a fixed set of seeds' recipes, at least one per row of the table per seed (P6).
-2. Each refused with its invariant named, and the node or firing.
+2. Each recipe mutation refused by the builder, with its invariant named, and the node or firing.
+3. Each baseline-file mutation refused by `check_baseline()`, against the valid graph, naming G8 and the composite.
 
 **T3, anatomy: metamorphic pairs.**
 1. The three pairs, for a fixed set of seeds (P7).
@@ -167,7 +170,7 @@ To be confirmed with this plan's PR.
 ## Not in this plan
 
 - **`accumulate` and `queue` rate rules, declared state domains (ADR 0004, decision 4), and conditional regions.** Each is a feature with its own plan. The interpreter is written to take a rate rule at a time, so each gains its oracle with it.
-- **The export for the domain flow compiler** (step 4). The `Graph` value names no edge's domain, which the export needs. T1's interpreter checks that the value is otherwise complete (P2).
+- **The export for the domain flow compiler** (step 4). The `Graph` value names no edge's domain, which the export needs, and holds no constant's value. T1's interpreter checks that it is otherwise complete (P2).
 - **A flight build that refuses a graph reading truth (SYS-02).** No mission has a flight target yet.
 - **Performance.** The cost of the stack's indirect calls against the slot stack's direct ones is worth measuring, but isn't a correctness property, and gates nothing here.
 
