@@ -175,7 +175,7 @@ To be confirmed with this plan's PR.
 
 | Step | PR | State |
 |---|---|---|
-| This plan | | open |
+| This plan | [#65](https://github.com/branes-ai/anatomy/pull/65) | open |
 | T1: the interpreter and the differential test | | |
 | T2: mutations | | |
 | T3: metamorphic pairs | | |
