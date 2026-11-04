@@ -288,7 +288,8 @@ struct output_port {
     std::size_t index = 0;
 };
 
-/// A value read in another region than its own: the latest value written.
+/// A value read in another region than its own: the latest value written,
+/// or the message value-initialized, before its region first writes it.
 template <class X>
 struct held : detail::source {
     using type = X;
@@ -760,7 +761,9 @@ void build_operator(G& g, std::size_t n) {
 /// built, and calls no virtual function: each firing is one indirect call.
 ///
 /// A message that holds a pointer it doesn't own (a camera frame) is valid
-/// only while its region runs.
+/// only while its region runs. Every input's and out port's message is
+/// value-initialized when the stack is built, so a hold, or an output, read
+/// before its region first runs reads that.
 class stack {
 public:
     stack(stack&&) noexcept = default;
