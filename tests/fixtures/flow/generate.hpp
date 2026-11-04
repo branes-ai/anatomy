@@ -5,7 +5,10 @@
 // and of each in port's source, which prints as text, so a failing case can
 // be read and rerun from its seed. build() describes the recipe to a
 // stack_builder, the API missions use, and returns the stack with its
-// external ports.
+// external ports. A recipe can also say what makes it invalid, for the
+// mutations (mutate.hpp, T2): a node placed against its graph's class, a
+// time taken from another region's input, a second region for a trigger, and
+// an output with no producer, or with two.
 //
 // The randomness is std::mt19937_64's raw output, whose sequence the
 // standard fixes, mapped to ranges here: the standard distributions differ
@@ -20,6 +23,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <random>
 #include <span>
@@ -40,7 +44,8 @@ using toys::Two;
 
 // ── Recipes ─────────────────────────────────────────────────────────
 
-enum class Kind : std::uint8_t { unary, binary, counter, clock, pair, rec };
+/// The kinds the generator draws, then Acc, which only the mutations use.
+enum class Kind : std::uint8_t { unary, binary, counter, clock, pair, rec, acc };
 inline constexpr std::size_t kKinds = 6;
 
 /// A handler of a toy kind, as the generator needs it.
@@ -59,12 +64,13 @@ struct HandlerSpec {
         {{"at", 0, true, {false}}},
         {{"apply", 1, false, {false, false}}},
         {{"apply", 1, false, {true}}},
+        {{"add", 1, false, {}}, {"scale", 1, false, {}}},
     };
     return table[static_cast<std::size_t>(k)];
 }
 
 [[nodiscard]] inline const char* kind_name(Kind k) {
-    static constexpr const char* names[] = {"Unary", "Binary", "Counter", "Clock", "Pair", "Rec"};
+    static constexpr const char* names[] = {"Unary", "Binary", "Counter", "Clock", "Pair", "Rec", "Acc"};
     return names[static_cast<std::size_t>(k)];
 }
 
@@ -82,9 +88,13 @@ struct ConstantSpec {
 struct NodeSpec {
     std::string name;
     Kind kind = Kind::unary;
-    unsigned salt = 1;  ///< 1 to 3
+    unsigned salt = 1;  ///< 1 to 3; Acc has only 1
     bool body = false;  ///< a body of several operators (UnaryChain, BinaryPre): scoreboard only
 };
+
+/// Where a node goes against its graph's class: as an instance, or as a
+/// composite. A node not placed goes where its class has it.
+enum class Place : std::uint8_t { instance, composite };
 
 struct SourceSpec {
     enum class From : std::uint8_t { input, constant, firing };
@@ -111,6 +121,11 @@ struct Recipe {
     std::vector<ConstantSpec> constants;
     std::vector<NodeSpec> nodes;
     std::vector<FiringSpec> firings;
+    std::map<std::size_t, Place> placed;       ///< node → where it goes against the class
+    std::map<std::size_t, std::size_t> at;     ///< firing → the input whose time it takes, not its region's
+    std::optional<std::size_t> second_region;  ///< an input whose trigger is given a second region
+    bool unproduced = false;                   ///< an output, "ox", that nothing produces
+    bool produced_twice = false;               ///< the first output produced again
 };
 
 [[nodiscard]] inline std::string to_string(const Recipe& r) {
@@ -123,10 +138,15 @@ struct Recipe {
     for (const ConstantSpec& c : r.constants) {
         o << "  constant " << c.name << " = (" << c.value.t.ns << ", " << c.value.v << ")\n";
     }
-    for (const NodeSpec& n : r.nodes) {
+    for (std::size_t i = 0; i < r.nodes.size(); ++i) {
+        const NodeSpec& n = r.nodes[i];
+        const auto placed = r.placed.find(i);
         o << "  node " << n.name << ": "
           << (n.body ? (n.kind == Kind::unary ? "UnaryChain" : "BinaryPre")
                      : std::string(kind_name(n.kind)) + std::to_string(n.salt))
+          << (placed == r.placed.end()            ? ""
+              : placed->second == Place::instance ? ", as an instance"
+                                                  : ", as a composite")
           << "\n";
     }
     for (std::size_t i = 0; i < r.firings.size(); ++i) {
@@ -134,7 +154,8 @@ struct Recipe {
         const HandlerSpec& h = handlers_of(r.nodes[f.node].kind)[f.handler];
         o << "  #" << i << " in " << r.inputs[f.region].name << ": " << r.nodes[f.node].name << "." << h.name << "(";
         if (h.timed) {
-            o << "at " << r.inputs[f.region].name << (f.in.empty() ? "" : ", ");
+            const auto at = r.at.find(i);
+            o << "at " << r.inputs[at == r.at.end() ? f.region : at->second].name << (f.in.empty() ? "" : ", ");
         }
         for (std::size_t k = 0; k < f.in.size(); ++k) {
             const SourceSpec& s = f.in[k];
@@ -154,6 +175,15 @@ struct Recipe {
             o << (k > 0 ? ", " : "") << (s.hold ? "hold(" + what + ")" : what);
         }
         o << ")\n";
+    }
+    if (r.second_region) {
+        o << "  a second region for " << r.inputs[*r.second_region].name << "\n";
+    }
+    if (r.unproduced) {
+        o << "  an output ox that nothing produces\n";
+    }
+    if (r.produced_twice) {
+        o << "  the first output produced twice\n";
     }
     return o.str();
 }
@@ -299,7 +329,8 @@ using Node = std::variant<fl::node<toys::UnaryBinding>,
                           fl::node<toys::CounterBinding>,
                           fl::node<toys::ClockBinding>,
                           fl::node<toys::PairBinding>,
-                          fl::node<toys::RecBinding>>;
+                          fl::node<toys::RecBinding>,
+                          fl::node<toys::AccBinding>>;
 using Out = std::variant<fl::value<Num>, fl::value<Two>>;
 
 /// A source, as a firing takes it: a value, held or not.
@@ -339,11 +370,13 @@ void with_op(Kind k, unsigned salt, F f) {
         return pick(std::type_identity<Pair1>{}, std::type_identity<Pair2>{}, std::type_identity<Pair3>{});
     case Kind::rec:
         return pick(std::type_identity<Rec1>{}, std::type_identity<Rec2>{}, std::type_identity<Rec3>{});
+    case Kind::acc:
+        return f(std::type_identity<Acc1>{});
     }
 }
 
 template <class G>
-Node make_node(G& g, fl::baseline_class kind, const NodeSpec& n) {
+Node make_node(G& g, fl::baseline_class kind, const NodeSpec& n, std::optional<Place> placed) {
     if (n.body) {
         if (n.kind == Kind::unary) {
             return fl::composite<toys::UnaryBinding, toys::UnaryChain>(g, n.name);
@@ -351,8 +384,9 @@ Node make_node(G& g, fl::baseline_class kind, const NodeSpec& n) {
         return fl::composite<toys::BinaryBinding, toys::BinaryPre>(g, n.name);
     }
     std::optional<Node> made;
+    const bool instance = placed ? *placed == Place::instance : kind == fl::baseline_class::research;
     with_op(n.kind, n.salt, [&]<class Op>(std::type_identity<Op>) {
-        if (kind == fl::baseline_class::research) {
+        if (instance) {
             made.emplace(fl::instance<Op>(g, n.name));
         } else {
             made.emplace(fl::composite<typename Op::binding, Op>(g, n.name));
@@ -383,8 +417,13 @@ inline std::vector<Out> fire(fl::scope& s, const Node& n, std::size_t h, const I
         return outs_of(fl::fire<"at">(s, std::get<3>(n), t));
     case 4:
         return with(in[0], [&](const auto& x) { return outs_of(fl::fire<"apply">(s, std::get<4>(n), x)); });
-    default:
+    case 5:
         return with(in[0], [&](const auto& x) { return outs_of(fl::fire<"apply">(s, std::get<5>(n), x)); });
+    default:
+        if (h == 0) {
+            return with(in[0], [&](const auto& x) { return outs_of(fl::fire<"add">(s, std::get<6>(n), x)); });
+        }
+        return with(in[0], [&](const auto& x) { return outs_of(fl::fire<"scale">(s, std::get<6>(n), x)); });
     }
 }
 
@@ -408,8 +447,10 @@ inline std::vector<Out> fire(fl::scope& s, const Node& n, std::size_t h, const I
         constants.push_back(fl::constant<Num>(g, c.name, c.value));
     }
     std::vector<detail::Node> nodes;
-    for (const NodeSpec& n : r.nodes) {
-        nodes.push_back(detail::make_node(g, r.kind, n));
+    for (std::size_t i = 0; i < r.nodes.size(); ++i) {
+        const auto placed = r.placed.find(i);
+        nodes.push_back(detail::make_node(
+            g, r.kind, r.nodes[i], placed == r.placed.end() ? std::nullopt : std::optional<Place>(placed->second)));
     }
     std::vector<std::optional<fl::scope>> scopes(r.inputs.size());
     for (std::size_t i = 0; i < r.inputs.size(); ++i) {
@@ -417,10 +458,16 @@ inline std::vector<Out> fire(fl::scope& s, const Node& n, std::size_t h, const I
             scopes[i].emplace(std::visit([&](const auto& p) { return g.region(p); }, inputs[i]));
         }
     }
+    if (r.second_region) {
+        (void)std::visit([&](const auto& p) { return g.region(p); }, inputs[*r.second_region]);
+    }
 
     std::vector<std::vector<detail::Out>> written;
     std::vector<fl::output_port<Num>> outputs;
-    for (const FiringSpec& f : r.firings) {
+    std::optional<fl::value<Num>> first;  ///< what the first output is produced from
+    for (std::size_t i = 0; i < r.firings.size(); ++i) {
+        const FiringSpec& f = r.firings[i];
+        const auto at = r.at.find(i);
         std::vector<detail::Src> in;
         for (const SourceSpec& s : f.in) {
             fl::value<Num> v;
@@ -445,13 +492,17 @@ inline std::vector<Out> fire(fl::scope& s, const Node& n, std::size_t h, const I
             }
             in.push_back(detail::Src{v, s.hold});
         }
-        written.push_back(detail::fire(*scopes[f.region], nodes[f.node], f.handler, inputs[f.region], in));
+        written.push_back(detail::fire(
+            *scopes[f.region], nodes[f.node], f.handler, inputs[at == r.at.end() ? f.region : at->second], in));
 
         // An output for every value the firing writes.
         const auto output = [&](const fl::value<Num>& v) {
             const std::string name = "o" + std::to_string(outputs.size());
             outputs.push_back(std::visit([&](const auto& p) { return fl::output<Num>(g, name, p); }, inputs[f.region]));
             g.produce(outputs.back(), v);
+            if (!first) {
+                first = v;
+            }
         };
         for (const detail::Out& o : written.back()) {
             if (const auto* v = std::get_if<fl::value<Num>>(&o)) {
@@ -462,6 +513,13 @@ inline std::vector<Out> fire(fl::scope& s, const Node& n, std::size_t h, const I
                 output(fl::project<"b", &Two::b>(rec));
             }
         }
+    }
+
+    if (r.unproduced) {
+        (void)std::visit([&](const auto& p) { return fl::output<Num>(g, "ox", p); }, inputs[0]);
+    }
+    if (r.produced_twice && first) {
+        g.produce(outputs.front(), *first);
     }
 
     auto st = std::move(g).build_stack();
