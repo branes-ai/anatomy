@@ -57,6 +57,7 @@ The random graphs are built from a small set of operators in `tests/fixtures/flo
 | `Clock` | `at(t) -> y`, a time handler | none |
 | `Pair` | `apply(x) -> (y, z)`, two out ports | none |
 | `Rec` | `apply(x) -> r`, a record of two fields, so that a source can project one | none |
+| `Acc` | `add(x)` and `scale(x)`, two updates of one sum. For the mutations only: the generator doesn't draw it | update, update |
 
 Each operator is a template over a salt, registered once per salt (`Unary1`, `Unary2`, ...), so that two operators of one kind compute different functions, and an edge read from the wrong instance shows up in the records. The salt is in the operator's registered name, which the `Graph` holds, so it needs no context: the stack builder builds every toy operator from an empty one.
 
@@ -85,12 +86,12 @@ A mutation changes one thing in a valid recipe so that it breaks one invariant:
 |---|---|
 | G1 | an empty name; a name that isn't `[a-z_][a-z0-9_]*`; two nodes, or a node and an external port, with one name |
 | G3 | an external output with no producer, or with two |
-| G5 | a second update of an instance's state in one region |
+| G5 | a second update of an instance's state in one region: `Acc`'s two, since firing one handler twice is G6 |
 | G6 | a second region for a trigger; a time handler fired at an input of another region; a handler that never fires; a handler fired twice at one input |
 | G7 | an edge between regions with no rate rule; a rate rule on an edge within a region, or from a constant |
 | G8 | an instance outside a body in a scoreboard graph; a composite in a research graph |
 
-The builder must refuse each mutated recipe, and its `ConfigError` must name the invariant and the node or firing the mutation changed. A mutation the builder accepts, or refuses for another reason, fails the test.
+The builder must refuse each mutated recipe, and its `ConfigError` must name the invariant and the node or firing the mutation changed. A mutation the builder accepts, or refuses for another reason, fails the test. A mutation that needs what the recipe lacks adds it first, validly: a node and its firing, an input with no region, or a constant. So each seed gets every mutation, but two nodes of one name, which needs two nodes.
 
 G8's other half is the baseline file's, which `check_baseline()` checks against a built graph, not the builder. Those mutations change the file, not the recipe: a file that names a body for a composite the graph doesn't have, or none for one it has, or the wrong class. `check_baseline()` must refuse each, against the valid graph built from the recipe, naming G8 and the composite.
 
@@ -180,7 +181,7 @@ To be confirmed with this plan's PR.
 |---|---|---|
 | This plan | [#65](https://github.com/branes-ai/anatomy/pull/65) | merged |
 | T1: the interpreter and the differential test | [#67](https://github.com/branes-ai/anatomy/pull/67) | open |
-| T2: mutations | | |
+| T2: mutations | [#69](https://github.com/branes-ai/anatomy/pull/69) | open |
 | T3: metamorphic pairs | | |
 | T4: the edge trace | | |
 | T5: racing-drone's baselines | | |
