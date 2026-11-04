@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.3](https://github.com/branes-ai/anatomy/compare/v0.10.2...v0.10.3) (2026-11-04)
+
+
+### Tests
+
+* **flow:** mutate valid graphs to break each invariant ([#69](https://github.com/branes-ai/anatomy/issues/69)) ([2fe2448](https://github.com/branes-ai/anatomy/commit/2fe2448ea75582d95c9a951381a2d8b1a203c7f7))
+
 ## [0.10.2](https://github.com/branes-ai/anatomy/compare/v0.10.1...v0.10.2) (2026-11-04)
 
 
