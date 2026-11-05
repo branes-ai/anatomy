@@ -140,8 +140,8 @@ Step 2 decides them with the library split.
 
 **racing-drone (1b):**
 4. Its 132 tests pass, on gcc and clang.
-5. All 39 harness outputs are byte-identical to the pre-split baseline (main f85ff73), compared with `tools/compare_outputs.sh`.
-6. Log compatibility: a log written at f85ff73 replays and verifies on 1b.
+5. All 39 harness outputs are byte-identical to the pre-split baseline (main 04343d1), compared with `tools/compare_outputs.sh`.
+6. Log compatibility: a log written at 04343d1 replays and verifies on 1b.
 
 ## Risks
 
