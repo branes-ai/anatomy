@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/branes-ai/anatomy/compare/v0.11.0...v0.11.1) (2026-11-05)
+
+
+### Documentation
+
+* **plan:** complete the flow-testing plan ([#75](https://github.com/branes-ai/anatomy/issues/75)) ([254fced](https://github.com/branes-ai/anatomy/commit/254fced60b25e23f3707990cb396c71b98b6292a))
+
 ## [0.11.0](https://github.com/branes-ai/anatomy/compare/v0.10.4...v0.11.0) (2026-11-04)
 
 
