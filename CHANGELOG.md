@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.5](https://github.com/branes-ai/anatomy/compare/v0.11.4...v0.11.5) (2026-11-05)
+
+
+### Continuous Integration
+
+* add Branes.AI CLA check ([#84](https://github.com/branes-ai/anatomy/issues/84)) ([94cf72c](https://github.com/branes-ai/anatomy/commit/94cf72cede18ac57012a008574f49502cd908576))
+
+
+### Documentation
+
+* **adr:** propose adr 0005, an application tier over the checked graph ([#86](https://github.com/branes-ai/anatomy/issues/86)) ([565b284](https://github.com/branes-ai/anatomy/commit/565b28441eac8034595bdb014ea2b8dc8c17c566))
+
 ## [0.11.4](https://github.com/branes-ai/anatomy/compare/v0.11.3...v0.11.4) (2026-11-05)
 
 
