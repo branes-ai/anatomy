@@ -29,7 +29,7 @@ So the slot stack can't be the oracle for what the graph adds, and step 4's expo
 
 Each property has an id, which the tests name.
 
-| Id | Property | Tested today |
+| Id | Property | Tested before this plan |
 |---|---|---|
 | P1 | **Execution:** for any checked graph and any input stream, `flow::stack` writes what the graph says: each region's firings in their order, each in port read from its `Ref`, and each `hold` the value its region last wrote | by equality with the slot stack, on the missions' graphs |
 | P2 | **The graph value is complete but for its values:** the checked `flow::Graph`, with the operators' definitions and the constants' values, determines the outputs. The export relies on the first two; the constants come from the baseline, as parameters do | no |
@@ -201,4 +201,4 @@ No test found a fault in the builder or the stack, so no PR changed their behavi
 | T3: metamorphic pairs | [#71](https://github.com/branes-ai/anatomy/pull/71) | merged, v0.10.4 |
 | T4: the edge trace | [#73](https://github.com/branes-ai/anatomy/pull/73) | merged, v0.11.0 |
 | T5: racing-drone's baselines | [racing-drone#104](https://github.com/branes-ai/racing-drone/pull/104), on v0.11.0 ([racing-drone#103](https://github.com/branes-ai/racing-drone/pull/103)) | merged, racing-drone v0.13.0 |
-| T6: docs | [#75](https://github.com/branes-ai/anatomy/pull/75), [racing-drone#107](https://github.com/branes-ai/racing-drone/pull/107) | merged |
+| T6: docs | [#75](https://github.com/branes-ai/anatomy/pull/75), [racing-drone#107](https://github.com/branes-ai/racing-drone/pull/107) | these PRs, which complete the plan |
