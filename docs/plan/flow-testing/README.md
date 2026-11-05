@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 issue: branes-ai/anatomy#64
 ---
 # Plan: testing the flow graph beyond equality with the slot stack
@@ -29,7 +29,7 @@ So the slot stack can't be the oracle for what the graph adds, and step 4's expo
 
 Each property has an id, which the tests name.
 
-| Id | Property | Tested today |
+| Id | Property | Tested before this plan |
 |---|---|---|
 | P1 | **Execution:** for any checked graph and any input stream, `flow::stack` writes what the graph says: each region's firings in their order, each in port read from its `Ref`, and each `hold` the value its region last wrote | by equality with the slot stack, on the missions' graphs |
 | P2 | **The graph value is complete but for its values:** the checked `flow::Graph`, with the operators' definitions and the constants' values, determines the outputs. The export relies on the first two; the constants come from the baseline, as parameters do | no |
@@ -175,14 +175,30 @@ To be confirmed with this plan's PR.
 - **A flight build that refuses a graph reading truth (SYS-02).** No mission has a flight target yet.
 - **Performance.** The cost of the stack's indirect calls against the slot stack's direct ones is worth measuring, but isn't a correctness property, and gates nothing here.
 
+## Where each property is tested
+
+| Id | Tests |
+|---|---|
+| P1 | `flow_differential`: 500 random graphs of 1000 inputs each, the stack's outputs equal to the interpreter's after every input. `flow_trace`: every edge the observer is handed equal to the interpreter's value of it |
+| P2 | `flow_differential`: the interpreter reads only the `Graph`, the toy operators' definitions and the constants' values. It also needs which input fires which region, which the `Graph` doesn't hold (T1's finding, in [the interpreter](#the-reference-interpreter)) |
+| P3 | `flow_differential` on GCC, Clang and MSVC in CI, from `std::mt19937_64`'s raw output; racing-drone's and scout-drone's determinism gates, and racing-drone's `gate.b0-shaped-pid.determinism.graph` and `gate.b0-shaped-research.determinism.graph` |
+| P4 | `flow_differential`: "P4 a hold reads its message value-initialized before its first write" |
+| P5 | `flow_differential`: "P5 a read before an update sees the last state, one after it the new"; `flow_metamorphic`: a read and an update swapped, each order against the interpreter |
+| P6 | `flow_mutations`: sixteen mutations of 200 seeds' recipes, each refused with its invariant and the node, firing, port or output it changed, and the baseline-file mutations refused by `check_baseline()` |
+| P7 | `flow_metamorphic`: a body against a research graph, independent firings reordered, and renaming. racing-drone's `gate.trace`: `b0-shaped-pid`'s and `b0-shaped-research`'s logs equal but for their names and hashes |
+| P8 | racing-drone's `gate.trace`: `b0-gt-pid`'s and `b0-shaped-pid`'s traces first differ on `tick[3].shaped`, which the controller's body writes |
+| P9 | `flow_differential`: "P9 a running stack allocates nothing", with a counting allocator |
+
+No test found a fault in the builder or the stack, so no PR changed their behavior.
+
 ## Progress
 
 | Step | PR | State |
 |---|---|---|
 | This plan | [#65](https://github.com/branes-ai/anatomy/pull/65) | merged |
-| T1: the interpreter and the differential test | [#67](https://github.com/branes-ai/anatomy/pull/67) | open |
-| T2: mutations | [#69](https://github.com/branes-ai/anatomy/pull/69) | open |
-| T3: metamorphic pairs | [#71](https://github.com/branes-ai/anatomy/pull/71) | open |
-| T4: the edge trace | [#73](https://github.com/branes-ai/anatomy/pull/73) | open |
-| T5: racing-drone's baselines | | |
-| T6: docs | | |
+| T1: the interpreter and the differential test | [#67](https://github.com/branes-ai/anatomy/pull/67) | merged, v0.10.2 |
+| T2: mutations | [#69](https://github.com/branes-ai/anatomy/pull/69) | merged, v0.10.3 |
+| T3: metamorphic pairs | [#71](https://github.com/branes-ai/anatomy/pull/71) | merged, v0.10.4 |
+| T4: the edge trace | [#73](https://github.com/branes-ai/anatomy/pull/73) | merged, v0.11.0 |
+| T5: racing-drone's baselines | [racing-drone#104](https://github.com/branes-ai/racing-drone/pull/104), on v0.11.0 ([racing-drone#103](https://github.com/branes-ai/racing-drone/pull/103)) | merged, racing-drone v0.13.0 |
+| T6: docs | [#75](https://github.com/branes-ai/anatomy/pull/75), [racing-drone#107](https://github.com/branes-ai/racing-drone/pull/107) | these PRs, which complete the plan |
