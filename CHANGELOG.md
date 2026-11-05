@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.3](https://github.com/branes-ai/anatomy/compare/v0.11.2...v0.11.3) (2026-11-05)
+
+
+### Build System
+
+* **deps:** pin reflex by its rewritten sha ([#80](https://github.com/branes-ai/anatomy/issues/80)) ([18bbb77](https://github.com/branes-ai/anatomy/commit/18bbb772118ea205b98549af26fdc51f9f3198a7))
+
 ## [0.11.2](https://github.com/branes-ai/anatomy/compare/v0.11.1...v0.11.2) (2026-11-05)
 
 
