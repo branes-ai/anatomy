@@ -113,8 +113,8 @@ This also settles step 1's open question. A profile that ships in anatomy regist
 **racing-drone (2c):**
 
 5. Its 132 tests pass, on gcc and clang.
-6. All 39 harness outputs are byte-identical to the pre-split baseline (main f85ff73), compared with `tools/compare_outputs.sh`.
-7. Log compatibility: the f85ff73 logs replay and verify.
+6. All 39 harness outputs are byte-identical to the pre-split baseline (main 04343d1), compared with `tools/compare_outputs.sh`.
+7. Log compatibility: the 04343d1 logs replay and verify.
 
 ## Risks
 
