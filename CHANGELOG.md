@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.2](https://github.com/branes-ai/anatomy/compare/v0.11.1...v0.11.2) (2026-11-05)
+
+
+### Documentation
+
+* **plan:** racing-drone's commits by their rewritten shas ([#78](https://github.com/branes-ai/anatomy/issues/78)) ([970b72c](https://github.com/branes-ai/anatomy/commit/970b72c6295b627e9ba4936a9b55cf71a4b482eb))
+
 ## [0.11.1](https://github.com/branes-ai/anatomy/compare/v0.11.0...v0.11.1) (2026-11-05)
 
 
