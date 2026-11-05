@@ -67,7 +67,7 @@ endif()
 FetchContent_Declare(
     reflex
     GIT_REPOSITORY https://github.com/branes-ai/reflex.git
-    GIT_TAG        8818265c4e8b37afdebf3abca851e21913c817d3  # main after reflex#81 (v0.10.0)
+    GIT_TAG        dc1ecf1e705f967bc6e51a464dea720cf437a071  # main after reflex#81 (v0.10.0)
     SYSTEM
 )
 FetchContent_MakeAvailable(reflex)
