@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.4](https://github.com/branes-ai/anatomy/compare/v0.11.3...v0.11.4) (2026-11-05)
+
+
+### Continuous Integration
+
+* pin docs-kit and architecture by their rewritten shas ([#82](https://github.com/branes-ai/anatomy/issues/82)) ([6393c45](https://github.com/branes-ai/anatomy/commit/6393c45263ad03b70898a73986d5721c448b2d80))
+
 ## [0.11.3](https://github.com/branes-ai/anatomy/compare/v0.11.2...v0.11.3) (2026-11-05)
 
 
