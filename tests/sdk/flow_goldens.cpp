@@ -64,12 +64,12 @@ std::string goldens() {
     o << "# The hash of each graph's canonical form (tests/sdk/flow_goldens.cpp).\n";
     o << "test.scoreboard " << hash_of(fl::baseline_class::scoreboard, [](fl::builder& g) { test::scoreboard(g); })
       << "\n";
-    o << "test.body "
-      << hash_of(fl::baseline_class::scoreboard, [](fl::builder& g) { test::scoreboard<Several>(g); }) << "\n";
-    o << "test.research "
-      << hash_of(fl::baseline_class::research, [](fl::builder& g) { (void)test::research(g); }) << "\n";
+    o << "test.body " << hash_of(fl::baseline_class::scoreboard, [](fl::builder& g) { test::scoreboard<Several>(g); })
+      << "\n";
+    o << "test.research " << hash_of(fl::baseline_class::research, [](fl::builder& g) { (void)test::research(g); })
+      << "\n";
     for (std::uint64_t seed = 1; seed <= kSeeds; ++seed) {
-        const auto b = gen::build(gen::generate(seed));
+        const auto b = gen::build(gen::generate(seed, gen::Draw{.accumulate = false}));
         if (!b) {
             FAIL("seed " << seed << " doesn't build: " << b.error().to_string());
         }

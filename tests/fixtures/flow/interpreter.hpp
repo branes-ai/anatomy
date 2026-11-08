@@ -6,6 +6,12 @@
 // a map, finds each operator by the name the Graph holds, and implements the
 // toy operators again from the plan's table, without toys.hpp.
 //
+// An accumulate edge (docs/plan/workbench, B2, W6) is a list of every value
+// its producer wrote since its reader's region last began, with no bound. As
+// the reader's region begins, its window is the list's last N values, and
+// how many came before them; then the list empties. The stack's accumulator
+// is a ring of N, so the two agree only if both keep the latest N in order.
+//
 // What it is given is property P2: the Graph, and the constants' values,
 // which the Graph doesn't hold. A region's trigger is its input's name, as
 // it is for an input declared with no trigger of its own: the Graph names
@@ -45,6 +51,12 @@ struct Rec {
 
 using Value = std::variant<Val, Rec>;
 
+/// What an accumulate edge's reader reads: the values, oldest first, and how many were dropped.
+struct Win {
+    std::vector<Val> items;
+    std::uint64_t dropped = 0;
+};
+
 [[nodiscard]] constexpr std::uint64_t mix(std::uint64_t x, std::uint64_t salt) noexcept {
     std::uint64_t z = x ^ (salt * 0x9E3779B97F4A7C15ULL);
     z += 0x9E3779B97F4A7C15ULL;
@@ -57,11 +69,27 @@ class Interpreter {
 public:
     /// Pre: g is a checked graph of toy operators; `constants` holds the value of each of its constants.
     Interpreter(fl::Graph g, std::map<std::string, Val> constants)
-        : g_(std::move(g)), constants_(std::move(constants)) {}
+        : g_(std::move(g)), constants_(std::move(constants)) {
+        for (const fl::Region& r : g_.regions) {
+            for (std::size_t i = 0; i < r.firings.size(); ++i) {
+                for (std::size_t k = 0; k < r.firings[i].in.size(); ++k) {
+                    const fl::Ref& ref = r.firings[i].in[k];
+                    if (ref.rate == fl::rate_rule::accumulate) {
+                        accs_[Key{r.trigger, i, std::to_string(k)}] = Acc{ref, {}, {}};
+                    }
+                }
+            }
+        }
+    }
 
     /// Input `name`'s message, and the run of its region, if it has one.
     void input(const std::string& name, Val m) {
         inputs_[name] = m;
+        for (auto& [reader, acc] : accs_) {
+            if (acc.from.from == fl::Ref::kind::input && acc.from.port == name) {
+                acc.pending.push_back(m);
+            }
+        }
         for (std::size_t r = 0; r < g_.regions.size(); ++r) {
             if (g_.regions[r].trigger == name) {
                 run(g_.regions[r]);
@@ -87,6 +115,14 @@ public:
 
 private:
     using Key = std::tuple<std::string, std::size_t, std::string>;  // region, firing, port
+
+    /// An accumulate edge: its source, the values written since its reader's
+    /// region last began, and the window the reader reads.
+    struct Acc {
+        fl::Ref from;
+        std::vector<Val> pending;
+        Win latched;
+    };
 
     /// An operator, from its registered name: its kind, then its salt.
     struct Op {
@@ -158,23 +194,60 @@ private:
     }
 
     void run(const fl::Region& region) {
+        // Each window the region reads, as the region begins.
+        for (auto& [reader, acc] : accs_) {
+            if (std::get<0>(reader) != region.trigger) {
+                continue;
+            }
+            const std::size_t n = std::min(acc.pending.size(), acc.from.capacity);
+            const auto first = acc.pending.end() - static_cast<std::ptrdiff_t>(n);
+            acc.latched = Win{std::vector<Val>(first, acc.pending.end()), acc.pending.size() - n};
+            acc.pending.clear();
+        }
         for (std::size_t i = 0; i < region.firings.size(); ++i) {
             const fl::Firing& f = region.firings[i];
             std::vector<Val> in;
-            for (const fl::Ref& ref : f.in) {
-                in.push_back(as_val(resolve(ref)));
+            std::vector<Win> windows;
+            for (std::size_t k = 0; k < f.in.size(); ++k) {
+                if (f.in[k].rate == fl::rate_rule::accumulate) {
+                    windows.push_back(accs_.at(Key{region.trigger, i, std::to_string(k)}).latched);
+                } else {
+                    in.push_back(as_val(resolve(f.in[k])));
+                }
             }
             const std::int64_t t = f.at.empty() ? 0 : inputs_.at(f.at).t;
-            for (auto& [port, value] : fire(f, in, t)) {
+            for (auto& [port, value] : fire(f, in, windows, t)) {
                 values_[Key{region.trigger, i, port}] = value;
+                // The accumulators this out port feeds: each takes its projection.
+                for (auto& [reader, acc] : accs_) {
+                    const fl::Ref& from = acc.from;
+                    if (from.from == fl::Ref::kind::firing && from.region == region.trigger && from.firing == i &&
+                        from.port == port) {
+                        Value v = value;
+                        for (const std::string& field : from.path) {
+                            const Rec r = std::get<Rec>(v);
+                            v = field == "a" ? r.a : r.b;
+                        }
+                        acc.pending.push_back(as_val(v));
+                    }
+                }
             }
         }
     }
 
     /// The toy operators, as the plan's table defines them.
-    std::vector<std::pair<std::string, Value>> fire(const fl::Firing& f, const std::vector<Val>& in, std::int64_t t) {
+    std::vector<std::pair<std::string, Value>>
+    fire(const fl::Firing& f, const std::vector<Val>& in, const std::vector<Win>& windows, std::int64_t t) {
         const Op op = op_of(registered(f.op));
         const std::uint64_t s = op.salt;
+        if (op.kind == "Fold" && f.handler == "apply") {
+            const Win& w = windows.at(0);
+            std::uint64_t acc = w.items.size() * 7 + w.dropped * 13;
+            for (const Val& x : w.items) {
+                acc = acc * 31 + x.v;
+            }
+            return {{"y", Val{w.items.empty() ? 0 : w.items.back().t, mix(acc, s)}}};
+        }
         if (op.kind == "Unary" && f.handler == "apply") {
             return {{"y", Val{in[0].t, mix(in[0].v, s)}}};
         }
@@ -211,6 +284,7 @@ private:
     std::map<std::string, Val> inputs_;
     std::map<Key, Value> values_;
     std::map<std::string, std::uint64_t> sums_;  ///< per Counter instance
+    std::map<Key, Acc> accs_;                    ///< per accumulate edge: its reader's region, firing and in port
 };
 
 }  // namespace interp

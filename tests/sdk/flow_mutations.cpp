@@ -45,7 +45,7 @@ TEST_CASE("flow mutations: each breaks one invariant, which the builder names", 
         }
     }
     // Every mutation applied to every seed, but two nodes of one name, to the seeds with two nodes.
-    CHECK(applied.size() == 16);
+    CHECK(applied.size() == 18);
     for (const auto& [what, n] : applied) {
         INFO(what);
         if (what == "G1 two nodes of one name") {

@@ -302,7 +302,8 @@ void builder::check_source(const Ref& ref, const std::string& trigger, const std
         } else if (ref.region != trigger && !hold) {
             fail(key,
                  "G7: an edge between regions has a rate rule: " + written(ref) + " is written in region " +
-                     in_quotes(ref.region) + ", and needs hold(" + written(ref) + ") or accumulate<N>(" + written(ref) + ")");
+                     in_quotes(ref.region) + ", and needs hold(" + written(ref) + ") or accumulate<N>(" + written(ref) +
+                     ")");
         }
         return;
     }

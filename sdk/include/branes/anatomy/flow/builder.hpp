@@ -1099,7 +1099,8 @@ template <class H, class B, class... S>
     using sig = typename B::signature;
     using in_types = typename port_values<sig, typename H::in>::type;
     using out_types = typename port_values<sig, typename H::out>::type;
-    static_assert((source_like<S> && ...), "G3: a source is a value, an input, a constant, or hold(...) or accumulate<N>(...) of one");
+    static_assert((source_like<S> && ...),
+                  "G3: a source is a value, an input, a constant, or hold(...) or accumulate<N>(...) of one");
     static_assert(sizeof...(S) == H::in::size, "G3: every in port of the handler has one source");
     static_assert(edges_match<in_types, S...>(), "G4: every edge joins two ports of the same domain");
     static_assert(messages_match<in_types, S...>(),

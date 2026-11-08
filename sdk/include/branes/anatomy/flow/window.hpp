@@ -26,6 +26,7 @@
 #include <branes/anatomy/flow/signature.hpp>
 
 #include <array>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
@@ -45,7 +46,9 @@ struct window {
     std::size_t count = 0;      ///< W1
     std::uint64_t dropped = 0;  ///< written since the region last began, and not in items
 
-    friend constexpr bool operator==(const window&, const window&) = default;
+    friend constexpr bool operator==(const window&, const window&)
+        requires std::equality_comparable<M>
+    = default;
 };
 
 namespace detail {
