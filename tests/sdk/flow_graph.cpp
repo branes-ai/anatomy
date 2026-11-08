@@ -486,7 +486,7 @@ TEST_CASE("flow graph: G7 an edge between regions holds, and no other", "[flow][
     });
     CHECK(e.key == "tick[2][3]");
     CHECK(e.message == "G7: an edge between regions has a rate rule: 'marks' fires 'marks', and needs hold(marks) or "
-                        "accumulate<N>(marks)");
+                       "accumulate<N>(marks)");
     e = scoreboard_error([](builder& g) {
         const test::Ports p = test::ports(g);
         const test::Composites c = test::composites<test::Bodies<>>(g);

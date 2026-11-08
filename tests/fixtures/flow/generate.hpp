@@ -34,6 +34,7 @@
 #include <random>
 #include <span>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -501,6 +502,18 @@ inline std::vector<Out> fire(fl::scope& s, const Node& n, std::size_t h, const I
             return with(in[0], [&](const auto& x) { return outs_of(fl::fire<"add">(s, std::get<6>(n), x)); });
         }
         return with(in[0], [&](const auto& x) { return outs_of(fl::fire<"scale">(s, std::get<6>(n), x)); });
+    case 7:
+    case 8:
+    case 9:
+        // A Fold's capacity is its salt's; the recipe's source says it too.
+        if (in[0].accumulate != toys::kFoldCapacity[n.index() - 6]) {
+            throw std::logic_error("gen: a Fold" + std::to_string(n.index() - 6) + " accumulates " +
+                                   std::to_string(toys::kFoldCapacity[n.index() - 6]) + " values, not " +
+                                   std::to_string(in[0].accumulate));
+        }
+        break;
+    }
+    switch (n.index()) {
     case 7:
         return outs_of(fl::fire<"apply">(s, std::get<7>(n), fl::accumulate<toys::kFoldCapacity[1]>(in[0].v)));
     case 8:

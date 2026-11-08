@@ -274,10 +274,10 @@ scope builder::region_of(const std::string& input) {
 }
 
 void builder::check_source(const Ref& ref, const std::string& trigger, const std::string& key) {
-    const bool hold = ref.rate != rate_rule::none;  // hold or accumulate
+    const bool ruled = ref.rate != rate_rule::none;  // hold or accumulate
     switch (ref.from) {
     case Ref::kind::constant:
-        if (hold) {
+        if (ruled) {
             fail(key, "G7: a constant takes no rate rule");
         }
         return;
@@ -287,9 +287,9 @@ void builder::check_source(const Ref& ref, const std::string& trigger, const std
             fail(key, "G3: " + in_quotes(in->name) + " carries only its time");
         }
         const std::string from = in != nullptr ? in->trigger : std::string();
-        if (from == trigger && hold) {
+        if (from == trigger && ruled) {
             fail(key, "G7: an edge within a region has no rate rule");
-        } else if (from != trigger && !hold) {
+        } else if (from != trigger && !ruled) {
             fail(key,
                  "G7: an edge between regions has a rate rule: " + in_quotes(ref.port) + " fires " + in_quotes(from) +
                      ", and needs hold(" + written(ref) + ") or accumulate<N>(" + written(ref) + ")");
@@ -297,9 +297,9 @@ void builder::check_source(const Ref& ref, const std::string& trigger, const std
         return;
     }
     case Ref::kind::firing:
-        if (ref.region == trigger && hold) {
+        if (ref.region == trigger && ruled) {
             fail(key, "G7: an edge within a region has no rate rule");
-        } else if (ref.region != trigger && !hold) {
+        } else if (ref.region != trigger && !ruled) {
             fail(key,
                  "G7: an edge between regions has a rate rule: " + written(ref) + " is written in region " +
                      in_quotes(ref.region) + ", and needs hold(" + written(ref) + ") or accumulate<N>(" + written(ref) +
