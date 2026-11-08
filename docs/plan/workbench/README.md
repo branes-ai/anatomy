@@ -281,5 +281,5 @@ To be confirmed with this plan's PR.
 | B2: `accumulate` | [#93](https://github.com/branes-ai/anatomy/pull/93) | merged |
 | B3: the workbench and the MLP | [#94](https://github.com/branes-ai/anatomy/pull/94) | merged |
 | B4: the Kalman filter | [#95](https://github.com/branes-ai/anatomy/pull/95) | merged |
-| B5: the DSP spectral pipeline | | open |
+| B5: the DSP spectral pipeline | [#96](https://github.com/branes-ai/anatomy/pull/96) | open |
 | B6: docs | | |
