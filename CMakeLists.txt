@@ -58,6 +58,13 @@ add_subdirectory(sim)
 # The tools a mission's gates run: log_compare.
 add_subdirectory(apps)
 
+# The workbench (docs/plan/workbench): patterns with closed-form oracles. Built
+# with the tests by default; a mission that fetches anatomy doesn't build it.
+option(ANATOMY_BUILD_WORKBENCH "Build the workbench/ patterns and workbench_run" ${ANATOMY_BUILD_TESTS})
+if(ANATOMY_BUILD_WORKBENCH)
+    add_subdirectory(workbench)
+endif()
+
 if(ANATOMY_BUILD_TESTS AND BUILD_TESTING)
     add_subdirectory(tests)
 endif()
