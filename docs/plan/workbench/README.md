@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 issue: branes-ai/anatomy#89
 ---
 # Plan: the workbench, and the MLP, Kalman and DSP patterns (ADR 0005, step 1)
@@ -76,7 +76,8 @@ struct data {
     // accepts only its size. Otherwise returns false and leaves the count unchanged.
     [[nodiscard]] constexpr bool resize(std::size_t n) noexcept;
 
-    // Row-major for dense. Symmetric and triangular: packed, the upper triangle row by row.
+    // Row-major for dense. Symmetric and upper triangular: packed, the upper triangle row by row.
+    // Lower triangular: the lower triangle, row by row.
     // Diagonal: the diagonal.
     [[nodiscard]] constexpr E& operator()(std::size_t i) noexcept;                  // rank 1
     [[nodiscard]] constexpr E& operator()(std::size_t i, std::size_t j) noexcept;   // rank 2
@@ -89,7 +90,7 @@ template <class D> struct domain_of<data<D>> { using type = D; };
 
 - A message of type `data<D>` is its own domain. Two ports that carry `data<D>` match on domain and on message type, and G4 refuses a port of any other shape, structure or element type at compile time.
 - The storage is a `std::array` of fixed size, so a `data<D>` holds nothing on the heap, and a slot of it allocates once, when the stack is built.
-- **Bounded extents:** only the leading extent may be bounded, and `count()` is the number of its rows in use. The count is private, and `resize(n)` refuses a count above the bound, so the bound holds for every `data<D>` (W4). A domain with no bounded extent has its full count, and `resize` accepts only that. More than one bounded extent is refused by a `static_assert`, until a pattern needs it.
+- **Bounded extents:** only the leading extent may be bounded, and `count()` is the number of its rows in use. The count is private, and `resize(n)` refuses a count above the bound, so the bound holds for every `data<D>` (W4). A bounded value starts empty (count 0), and rows past the count hold value-initialized elements, so two values with the same rows in use compare equal. A domain with no bounded extent has its full count, and `resize` accepts only that. More than one bounded extent is refused by a `static_assert`, until a pattern needs it.
 - **Structure:** `(i, j)` of a symmetric matrix is `(j, i)`: one stored element. Writing outside a triangle is a precondition violation, checked in debug builds.
 - A record's element type has no C++ type to store, so `data<D>` takes domains of the element types above only. A message that is a record stays a struct with its `domain_of`, as the missions' are.
 
@@ -253,8 +254,8 @@ To be confirmed with this plan's PR.
 
 | Step | PR | State |
 |---|---|---|
-| B0: this plan | [#90](https://github.com/branes-ai/anatomy/pull/90) | open |
-| B1: `flow::data<D>` and complex elements | | |
+| B0: this plan | [#90](https://github.com/branes-ai/anatomy/pull/90) | merged |
+| B1: `flow::data<D>` and complex elements | this PR | open |
 | B2: `accumulate` | | |
 | B3: the workbench and the MLP | | |
 | B4: the Kalman filter | | |
