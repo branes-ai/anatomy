@@ -124,7 +124,7 @@ The model's other uses of an accumulator, such as IMU samples integrated between
 workbench/
 ├── include/branes/anatomy/workbench/
 │   ├── driver.hpp      # sources at declared rates, merged into one stream; runs a pattern's stack
-│   ├── sources.hpp     # a clock and a sequence (B3); a noisy constant-velocity trajectory (B4), a sum of tones (B5)
+│   ├── sources.hpp     # random numbers, a clock and a sequence; a pattern's signals (a trajectory, tones) are its own
 │   ├── codecs.hpp      # trace codecs for data<D> and window<M, N>
 │   ├── mtl5.hpp        # MTL5 views of data<D>, and packing for its structured domains (B4)
 │   ├── pattern.hpp     # what a pattern provides (below)
@@ -172,18 +172,20 @@ The operators are built from a workbench context that holds the configuration, w
   - over fixed seeds, the normalized estimation error squared (NEES) of 2000 updates averages within its 95 % chi-square bounds. The NEES is taken at every 25th update: a filter's errors are correlated from one update to the next, so the mean over every update varies about 3.5 times more than the bounds of independent samples allow, while 25 updates (2.5 s) apart the samples are nearly independent. As a 95 % test, it fails about one seed in twenty (of seeds 1 to 100, six), so the tests' seeds are fixed, each with its mean well inside the bounds;
   - the `f32` and `f64` instantiations agree to 1e-4 relative. The graph runs both, `Kalman_f64` and `Kalman_f32`, the `f32` one fed the fixes through a `Cast`, so one run's samples hold both.
 
-**The DSP spectral pipeline.** Samples at 8192 Hz, frames of N = 256.
+**The DSP spectral pipeline.** Samples at 8192 Hz, frames of N = 256, so bins are 32 Hz apart. 1/8192 s isn't a whole number of nanoseconds, so the sample period is 122 070 ns; the operators count samples, not time.
 
-- The **sample region**, fired by each sample, runs a band-pass FIR of 63 taps. Its delay line is its state, and its taps are a constant with values: a windowed sinc, designed from the configuration when the graph is built.
-- The **frame region**, fired by a frame tick at every 256th sample's time, after the sample, reads `accumulate<256>` of the filtered samples. It then runs a Hann window (a constant), a cast to `complex<double>`, a radix-2 FFT and a magnitude.
-- Its outputs are the spectrum (256 complex bins) and the magnitude of the first 129 bins.
-- The source is a sum of tones at bin centers, two in the pass band and one in the stop band, plus seeded noise.
-- **Oracle:**
+- The **sample region**, fired by each sample, runs `Fir_f64_63`, a band-pass FIR of 63 taps. Its delay line is its state, and its taps are a constant with values: a Hamming-windowed sinc, designed from the configuration when the graph is built, 6 dB down at 1024 and 2048 Hz.
+- The **frame region**, fired by a frame tick at every 256th sample's time, after the sample, reads `accumulate<256>` of the filtered samples. `Framer` turns the window into a frame (its count kept) and the number it dropped. Then a periodic Hann window (a constant), a cast to `complex<double>`, a radix-2 FFT whose twiddles it computes `from_context`, and a magnitude.
+- Its outputs are the filtered sample, and per frame the filtered frame, the number dropped, the spectrum (256 complex bins) and the magnitude of bins 0 to 128. The frame and the number dropped are outputs so the oracle can check the window.
+- The source is a sum of tones at bin centers, two in the pass band (bins 40 and 52, amplitudes 1 and 0.5) and one in the stop band (bin 100, amplitude 1), with phases drawn from the seed, plus seeded noise of standard deviation 10⁻³. With a periodic Hann window, a tone at a bin's center leaks into its two neighbours only, so the tones don't disturb one another's bins.
+- **Oracle**, in `long double`, without the operators:
   - every frame's window has `count == 256` and `dropped == 0`;
-  - the largest magnitudes are at the pass-band tones' bins;
+  - the filtered frame agrees with the FIR evaluated from the samples and the taps, to a relative 1e-12;
+  - the spectrum and the magnitude agree with a direct DFT of the windowed frame to a relative 1e-12 (of the largest bin), and Parseval holds between them to 1e-12;
+  - from the second frame, since the first holds the filter's transient: the two largest magnitudes are at the pass-band tones' bins;
   - each pass-band tone's magnitude is within 1 % of `A·|H(f)|·Σw/2`, with `H(f)` evaluated directly from the taps;
-  - the stop-band tone's magnitude is within 1 % of the same prediction, which the design puts at least 40 dB down;
-  - Parseval holds between the windowed frame and the spectrum, to a relative 1e-12.
+  - the stop-band tone's magnitude is within 1 % of the same prediction, and the design puts it at least 40 dB down (64 dB).
+  - With the defaults, every check has at least 15 times its margin: the tones agree with their predictions to 6.4e-4 at worst, and the rest to under 1e-15.
 
 A first frame that begins before 256 samples have arrived isn't possible with this driver. W6's tests cover short and overfull windows on the toy graphs.
 
@@ -278,6 +280,6 @@ To be confirmed with this plan's PR.
 | B1: `flow::data<D>` and complex elements | [#91](https://github.com/branes-ai/anatomy/pull/91) | merged |
 | B2: `accumulate` | [#93](https://github.com/branes-ai/anatomy/pull/93) | merged |
 | B3: the workbench and the MLP | [#94](https://github.com/branes-ai/anatomy/pull/94) | merged |
-| B4: the Kalman filter | [#95](https://github.com/branes-ai/anatomy/pull/95) | open |
-| B5: the DSP spectral pipeline | | |
+| B4: the Kalman filter | [#95](https://github.com/branes-ai/anatomy/pull/95) | merged |
+| B5: the DSP spectral pipeline | | open |
 | B6: docs | | |
