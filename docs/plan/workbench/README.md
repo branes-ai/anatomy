@@ -28,9 +28,6 @@ This plan adds what the first three patterns need of those, and the patterns the
   - **the MLP:** two layers in different element types, with weights as constants;
   - **the Kalman filter:** constant velocity, with a symmetric covariance as state, predicting on a clock and updating on a bounded measurement;
   - **the DSP spectral pipeline:** a FIR, `accumulate` into frames, a window, an FFT and a magnitude;
-  - **Optical Flow:** the optical flow transformation
-  - **a ResNet18 CNN:** a CNN bringing in the GGUF/GGML/MTL5 machinery
-  - **a Transformer DNN:** a ViT or DETR, bringing in the GGUF/GGML/MTL5 machinery
 - **`workbench_run`:** a tool that runs a pattern, reports its oracle, and writes its trace and its graph. It is the first graph tool that needs no mission.
 
 **What doesn't change:**
@@ -246,6 +243,10 @@ To be confirmed with this plan's PR.
 - **Checking an operator's declared state domains against its handlers' state roles.** The Kalman filter declares its state, but nothing checks the declaration, which is step 3's to carry in the document.
 - **Any change to a mission**, other than the gate in B2.
 - **Performance.** The reference operators are written to be checked, not to be fast.
+- **Optical flow, a ResNet18 CNN, and a transformer (a ViT or DETR).** These are the patterns closest to an Embodied AI pipeline's perception, and they follow in a step of their own, with an amendment to ADR 0005, whose table doesn't list them. They need three things step 1 doesn't have:
+  - **A subgraph defined once and used many times.** A ResNet is a residual block, repeated per stage with its own shapes and weights, and stages of blocks; a transformer is an encoder layer repeated N times. Today a body is a C++ type that fills one composite of a scoreboard graph. What these patterns need is a subgraph with ports, which a graph instantiates as often as it needs, nested, with its own constants, in a research graph or a pattern as well as in a composite. The checks must see through it: an instance's edges, state and rate rules are checked as if it were written out, and the canonical form, the trace and the Mermaid view name each instance's firings by its path (`stage2.block1.conv1`). This is the feature these patterns are the client for.
+  - **Tensor domains of rank 3 and 4,** for images and feature maps. `data<D>` here stores rank 1 and 2. The convolution pattern of step 2 brings rank 3 and the sliding-window computational domain, and these patterns build on it.
+  - **Operators and weights from synapse.** ResNet18 and a transformer come with GGUF weights, and their kernels are synapse's on MTL5. The workbench's operators are reference implementations that no mission links (ADR 0005, decision 1). Whether the workbench may link synapse's operators, or registers its own reference ones and checks synapse's against them, is the amendment's to decide. Optical flow is the bridge between the two: a classical pattern (Lucas–Kanade over an image pyramid) whose oracle is a known translation or rotation of a synthetic image.
 
 ## Progress
 
