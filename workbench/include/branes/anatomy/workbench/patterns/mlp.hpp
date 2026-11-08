@@ -302,6 +302,7 @@ struct sample {
 
 struct pattern {
     static constexpr std::string_view name = "mlp";
+    static constexpr std::size_t default_inputs = 100;
     using config = mlp::config;
     using context = mlp::context;
     using ports = mlp::ports;

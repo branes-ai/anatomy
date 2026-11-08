@@ -1,18 +1,20 @@
 // workbench_run: a pattern of the workbench, run with its default
 // configuration, and its oracle's report (docs/plan/workbench).
 //
-//   workbench_run <mlp> [--inputs N] [--seed S] [--trace run.brtrace]
+//   workbench_run <mlp|kalman> [--inputs N] [--seed S] [--trace run.brtrace]
 //                 [--mermaid g.mmd] [--canonical g.txt] [--tolerance-scale K]
 //
 // Exits 0 if every check passes, 1 if one fails, and 2 on a usage error or a
 // file it can't write, as trace_compare does. --tolerance-scale multiplies
 // every check's tolerance by K, to show how much margin the pattern has.
-// This tool runs only the patterns compiled into it: the MLP, until B4 and
-// B5 add the Kalman filter and the DSP pipeline.
+// This tool runs only the patterns compiled into it: the MLP and the Kalman
+// filter, until B5 adds the DSP pipeline. --inputs defaults to the pattern's
+// own number: the Kalman filter's oracle needs 2000 updates.
 
 #include <branes/anatomy/flow/graph.hpp>
 #include <branes/anatomy/harness/args.hpp>
 #include <branes/anatomy/workbench/pattern.hpp>
+#include <branes/anatomy/workbench/patterns/kalman.hpp>
 #include <branes/anatomy/workbench/patterns/mlp.hpp>
 
 #include <charconv>
@@ -36,7 +38,7 @@ int usage(const std::string& message) {
 }
 
 constexpr const char* kUsage =
-    "usage: workbench_run <mlp> [--inputs N] [--seed S] [--trace run.brtrace] [--mermaid g.mmd] "
+    "usage: workbench_run <mlp|kalman> [--inputs N] [--seed S] [--trace run.brtrace] [--mermaid g.mmd] "
     "[--canonical g.txt] [--tolerance-scale K]";
 
 template <class T>
@@ -56,7 +58,7 @@ bool write_file(const std::filesystem::path& path, const std::string& text) {
 }
 
 template <class P>
-int run(typename P::config cfg, const an::harness::Args& args, std::size_t inputs, double scale) {
+int run(typename P::config cfg, const an::harness::Args& args, std::optional<std::size_t> inputs, double scale) {
     if (const auto mmd = args.value("mermaid"), txt = args.value("canonical"); mmd || txt) {
         const auto g = wb::describe<P>(cfg);
         if (!g) {
@@ -70,7 +72,7 @@ int run(typename P::config cfg, const an::harness::Args& args, std::size_t input
         }
     }
     wb::run_options opt;
-    opt.inputs = inputs;
+    opt.inputs = inputs ? *inputs : P::default_inputs;
     if (const auto t = args.value("trace")) {
         opt.trace = *t;
     }
@@ -97,7 +99,7 @@ int main(int argc, char** argv) {
     if (auto bad = args->only({"inputs", "seed", "trace", "mermaid", "canonical", "tolerance-scale"})) {
         return usage(*bad);
     }
-    std::size_t inputs = 100;
+    std::optional<std::size_t> inputs;
     if (const auto n = args->value("inputs")) {
         const auto v = number<std::size_t>(*n);
         if (!v || *v == 0) {
@@ -128,5 +130,12 @@ int main(int argc, char** argv) {
         }
         return run<wb::mlp::pattern>(cfg, *args, inputs, scale);
     }
-    return usage("no pattern '" + pattern + "': this build runs mlp\n" + kUsage);
+    if (pattern == "kalman") {
+        wb::kalman::config cfg;
+        if (seed) {
+            cfg.seed = *seed;
+        }
+        return run<wb::kalman::pattern>(cfg, *args, inputs, scale);
+    }
+    return usage("no pattern '" + pattern + "': this build runs mlp and kalman\n" + kUsage);
 }
