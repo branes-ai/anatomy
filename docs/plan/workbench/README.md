@@ -72,7 +72,8 @@ struct data {
 
     // A bounded leading extent's count; its bound otherwise.
     [[nodiscard]] constexpr std::size_t count() const noexcept;
-    // Sets the count, if n is at most the bound; else returns false and leaves it unchanged.
+    // A bounded leading extent: sets the count if n is at most the bound. A static extent:
+    // accepts only its size. Otherwise returns false and leaves the count unchanged.
     [[nodiscard]] constexpr bool resize(std::size_t n) noexcept;
 
     // Row-major for dense. Symmetric and triangular: packed, the upper triangle row by row.
