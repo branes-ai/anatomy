@@ -145,7 +145,10 @@ set(flow_compile_fail
     "g2_call|G2: a handler's call\\(\\) takes its operator"
     "stack_message|the CPU stack runs a handler whose ports carry message types"
     "g4_output|G4: every edge joins two ports of the same domain"
-    "g4_body|G4: a body's handler returns its composite handler's out ports")
+    "g4_body|G4: a body's handler returns its composite handler's out ports"
+    "w4_shape|G4: every edge joins two ports of the same domain"
+    "w4_structure|G4: every edge joins two ports of the same domain"
+    "w4_element|G4: every edge joins two ports of the same domain")
 foreach(entry IN LISTS flow_compile_fail)
     string(REPLACE "|" ";" entry "${entry}")
     list(GET entry 0 case)

@@ -22,7 +22,8 @@
 /// what it holds):
 ///   D1: every extent has a size or a bound of at least 1
 ///   D2: a structure other than dense needs rank 2 and the same extent twice
-///   D3: the element type is an element type (is_element_v)
+///   D3: the element type is an element type (is_element_v): arithmetic, an
+///       enumeration, Timestamp, std::complex of a floating-point type, or a record
 ///   R1: a record has at least one field, its field names are non-empty and
 ///       distinct, and each field holds a domain or a record
 ///
@@ -34,6 +35,7 @@
 
 #include <algorithm>
 #include <array>
+#include <complex>
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
@@ -117,7 +119,7 @@ inline constexpr bool is_extent_v = std::is_base_of_v<detail::extent_tag, X>;
 // ── Element types ───────────────────────────────────────────────────
 
 /// Specialize with `static constexpr bool is_element = true;` to admit a type
-/// that is not arithmetic, an enumeration, Timestamp or a record.
+/// that is not arithmetic, an enumeration, Timestamp, a complex or a record.
 template <class T>
 struct element_traits {
     static constexpr bool is_element = false;
@@ -126,6 +128,12 @@ struct element_traits {
 template <>
 struct element_traits<Timestamp> {
     static constexpr bool is_element = true;
+};
+
+/// std::complex of float, double or long double (docs/plan/workbench, B1).
+template <class T>
+struct element_traits<std::complex<T>> {
+    static constexpr bool is_element = std::is_floating_point_v<T>;
 };
 
 template <class R>

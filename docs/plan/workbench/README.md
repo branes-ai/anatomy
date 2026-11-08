@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 issue: branes-ai/anatomy#89
 ---
 # Plan: the workbench, and the MLP, Kalman and DSP patterns (ADR 0005, step 1)
@@ -76,7 +76,8 @@ struct data {
     // accepts only its size. Otherwise returns false and leaves the count unchanged.
     [[nodiscard]] constexpr bool resize(std::size_t n) noexcept;
 
-    // Row-major for dense. Symmetric and triangular: packed, the upper triangle row by row.
+    // Row-major for dense. Symmetric and upper triangular: packed, the upper triangle row by row.
+    // Lower triangular: the lower triangle, row by row.
     // Diagonal: the diagonal.
     [[nodiscard]] constexpr E& operator()(std::size_t i) noexcept;                  // rank 1
     [[nodiscard]] constexpr E& operator()(std::size_t i, std::size_t j) noexcept;   // rank 2
@@ -89,7 +90,7 @@ template <class D> struct domain_of<data<D>> { using type = D; };
 
 - A message of type `data<D>` is its own domain. Two ports that carry `data<D>` match on domain and on message type, and G4 refuses a port of any other shape, structure or element type at compile time.
 - The storage is a `std::array` of fixed size, so a `data<D>` holds nothing on the heap, and a slot of it allocates once, when the stack is built.
-- **Bounded extents:** only the leading extent may be bounded, and `count()` is the number of its rows in use. The count is private, and `resize(n)` refuses a count above the bound, so the bound holds for every `data<D>` (W4). A domain with no bounded extent has its full count, and `resize` accepts only that. More than one bounded extent is refused by a `static_assert`, until a pattern needs it.
+- **Bounded extents:** only the leading extent may be bounded, and `count()` is the number of its rows in use. The count is private, and `resize(n)` refuses a count above the bound, so the bound holds for every `data<D>` (W4). A bounded value starts empty (count 0), and rows past the count hold value-initialized elements, so two values with the same rows in use compare equal. A domain with no bounded extent has its full count, and `resize` accepts only that. More than one bounded extent is refused by a `static_assert`, until a pattern needs it.
 - **Structure:** `(i, j)` of a symmetric matrix is `(j, i)`: one stored element. Writing outside a triangle is a precondition violation, checked in debug builds.
 - A record's element type has no C++ type to store, so `data<D>` takes domains of the element types above only. A message that is a record stays a struct with its `domain_of`, as the missions' are.
 
@@ -125,6 +126,7 @@ workbench/
 │   ├── driver.hpp      # sources at declared rates, merged into one stream; runs a pattern's stack
 │   ├── sources.hpp     # a clock, a sequence, a noisy constant-velocity trajectory, a sum of tones
 │   ├── codecs.hpp      # trace codecs for data<D> and window<M, N>
+│   ├── mtl5.hpp        # MTL5 views of data<D>, and packing for its structured domains (B4)
 │   ├── pattern.hpp     # what a pattern provides (below)
 │   └── patterns/       # mlp.hpp, kalman.hpp, dsp.hpp: operators, bindings, graph, oracle
 └── apps/workbench_run/
@@ -163,6 +165,7 @@ The operators are built from a workbench context that holds the configuration, w
 - At a time shared by the clock and the fixes, the clock goes first, so the update applies to the predicted state.
 - The update is in Joseph form. `prior` runs in the clock region after `predict` and writes `x` and `P` to the `prior` output. `posterior` runs in the fixes region after `update` and writes them to the `posterior` output, which the oracle's checks of the update read.
 - The signature declares `x` and `P` as its state domains.
+- Its arithmetic is MTL5's, through the workbench's adapter (below). Between firings, `P` is kept packed in its `data` (10 elements, symmetric by construction). A handler unpacks it, computes, and packs the result again.
 - **Oracle:**
   - `P` is positive definite after every firing: its Cholesky factorization succeeds;
   - with one fix per update, `P` after the update converges to the steady-state solution of the discrete Riccati equation, which the oracle iterates in `long double`, to a relative 1e-9 within 500 updates;
@@ -183,6 +186,19 @@ The operators are built from a workbench context that holds the configuration, w
   - Parseval holds between the windowed frame and the spectrum, to a relative 1e-12.
 
 A first frame that begins before 256 samples have arrived isn't possible with this driver. W6's tests cover short and overfull windows on the toy graphs.
+
+### The MTL5 adapter
+
+`data<D>` is what an edge carries: its type is its domain, a symmetric matrix stores one element for `(i, j)` and `(j, i)`, and two values with the same rows in use compare equal (A2). A trace holds its elements and count as the workbench's codec writes them, not the object's bytes, which can include padding. It does no arithmetic. A pattern's operators do theirs in MTL5, through `workbench/mtl5.hpp`:
+
+- `mtl5::view(d)`: for a dense `data<D>` of rank 1 or 2, an MTL5 `dense_vector` or row-major `dense2D` over `d.elements`, built with MTL5's external-pointer constructors. It doesn't copy or allocate. For a bounded leading extent, the view has `d.count()` rows, so a caller resizes `d` before it takes the view.
+- In MTL5 5.20.0, copying such a view, or copy-assigning one view to another, detaches the destination: it allocates storage of its own, and the `data<D>` behind it isn't written. Assigning an expression (`y = A * x`, `P += Q`) writes in place only when its dimensions match the view's; otherwise MTL5 resizes, which detaches too. So `view(d)` returns a wrapper that can't be copied or copy-assigned, and gives its MTL5 object only by const reference, to read and to use in expressions. Writes go through the wrapper: element access, and `[[nodiscard]] bool mtl5::assign(dst, expr)` and `mtl5::add(dst, expr)`, as `resize` is. Each returns false and writes nothing if the expression's dimensions differ from the view's, and otherwise writes in place. `expr` may be another view, which is copied element by element.
+- `mtl5::unpack(d)` and `mtl5::pack(m, d)`: for a symmetric, triangular or diagonal `data<D>`, a fixed-size dense MTL5 matrix (stack storage, so no allocation) and back. `pack` of a symmetric domain takes the upper triangle, so a result's asymmetry is dropped rather than stored; in debug builds `pack` asserts that the two triangles agree to a tolerance it is given.
+- Tests (`tests/workbench/`): a view reads and writes the elements in place; `assign` and `add` of an expression, and `assign` of one view to another, write the `data<D>` behind it; an expression of other dimensions, such as a 3-vector into the view of a bounded value whose count is 0, returns false and leaves the `data<D>` unchanged; the wrapper is neither copy constructible nor copy assignable (a static check); `pack(unpack(d)) == d` for every structure; an MTL5 product through the views equals the same product written as loops; and the adapter allocates nothing (the counting allocator, W8).
+
+The workbench links `MTL5::mtl5`, the target that reflex's fetch already defines, at reflex's pin (5.20.0). Anatomy adds no fetch of its own. The SDK doesn't link MTL5 (design choice 7).
+
+Universal's number types aren't element types (D3), so a posit can't be a `data<D>`'s element. Admitting them is a change to `element_traits`, and is left to the step that sweeps a pattern's precision.
 
 ### `workbench_run`
 
@@ -217,7 +233,10 @@ Six PRs, each accepted on its own criteria. ADR 0005 was accepted with this plan
 2. `workbench_mlp` (`tests/workbench/`): W1, W2 and W3 on the MLP, and W5, a constant read by reference by every firing.
 3. `workbench_run mlp`, with a test that runs the tool on each exit code.
 
-**B4, the Kalman filter.** The pattern, and `workbench_kalman`: W1, W2 and W3. B4 has the first operator with two handlers that update its state in two regions, fired by two triggers at shared times.
+**B4, the Kalman filter.**
+1. `workbench/mtl5.hpp` and its tests (the MTL5 adapter, above), with `MTL5::mtl5` linked by the workbench only.
+2. The pattern, its arithmetic in MTL5 through the adapter, and `workbench_kalman`: W1, W2 and W3.
+3. B4 has the first operator with two handlers that update its state in two regions, fired by two triggers at shared times.
 
 **B5, the DSP spectral pipeline.** The pattern, and `workbench_dsp`: W1, W2 and W3. B5 is the first client of `accumulate` and of complex elements.
 
@@ -235,6 +254,7 @@ To be confirmed with this plan's PR.
 4. **`accumulate` latches when the reader's region begins, and drops the oldest on overflow.** Latching makes every firing of the reader see one window, whatever their order. Dropping the oldest and counting them is deterministic and allocates nothing, and the reader can tell that it lost values. The alternative, refusing to run, would make a run's result depend on whether a rate assumption held, with no record of it.
 5. **No interpreter support for the patterns.** The reference interpreter knows the toy operators, and gains `accumulate` on them (B2). A second implementation of an FFT or a Kalman update in the interpreter would be a third oracle. The closed-form one is a stronger check, and the hand-wired run already checks the graph's execution.
 6. **Tolerances, not byte-identity, across compilers.** Floating point differs between GCC, Clang and MSVC, and between their libms. The missions' determinism gates are byte-exact on one compiler, and so is W3 run to run. Across compilers, the oracle's tolerance is the check.
+7. **`data<D>` carries values; MTL5 computes with them, and the SDK stays free of MTL5.** An MTL5 type records a matrix's size, not its structure, a bounded extent or its name, so it can't be the domain G4 compares. Its symmetric and triangular matrices are views over full storage, so a covariance could drift asymmetric. Its fixed sizes can't hold a count, and its dynamic ones allocate. `data<D>` has none of those gaps but no arithmetic, so operators convert at their own boundary, in the workbench. Keeping MTL5 out of the SDK means a mission that builds against anatomy doesn't have to agree on an MTL5 version with reflex, synapse and cortex. The cost is the copy into and out of a packed domain at each firing: 16 and 10 elements for the Kalman filter's `P`.
 
 ## Not in this plan
 
@@ -253,8 +273,8 @@ To be confirmed with this plan's PR.
 
 | Step | PR | State |
 |---|---|---|
-| B0: this plan | [#90](https://github.com/branes-ai/anatomy/pull/90) | open |
-| B1: `flow::data<D>` and complex elements | | |
+| B0: this plan | [#90](https://github.com/branes-ai/anatomy/pull/90) | merged |
+| B1: `flow::data<D>` and complex elements | [#91](https://github.com/branes-ai/anatomy/pull/91) | open |
 | B2: `accumulate` | | |
 | B3: the workbench and the MLP | | |
 | B4: the Kalman filter | | |
