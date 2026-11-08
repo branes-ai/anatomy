@@ -126,6 +126,7 @@ workbench/
 │   ├── driver.hpp      # sources at declared rates, merged into one stream; runs a pattern's stack
 │   ├── sources.hpp     # a clock, a sequence, a noisy constant-velocity trajectory, a sum of tones
 │   ├── codecs.hpp      # trace codecs for data<D> and window<M, N>
+│   ├── mtl5.hpp        # MTL5 views of data<D>, and packing for its structured domains (B4)
 │   ├── pattern.hpp     # what a pattern provides (below)
 │   └── patterns/       # mlp.hpp, kalman.hpp, dsp.hpp: operators, bindings, graph, oracle
 └── apps/workbench_run/
@@ -164,6 +165,7 @@ The operators are built from a workbench context that holds the configuration, w
 - At a time shared by the clock and the fixes, the clock goes first, so the update applies to the predicted state.
 - The update is in Joseph form. `prior` runs in the clock region after `predict` and writes `x` and `P` to the `prior` output. `posterior` runs in the fixes region after `update` and writes them to the `posterior` output, which the oracle's checks of the update read.
 - The signature declares `x` and `P` as its state domains.
+- Its arithmetic is MTL5's, through the workbench's adapter (below). Between firings, `P` is kept packed in its `data` (10 elements, symmetric by construction). A handler unpacks it, computes, and packs the result again.
 - **Oracle:**
   - `P` is positive definite after every firing: its Cholesky factorization succeeds;
   - with one fix per update, `P` after the update converges to the steady-state solution of the discrete Riccati equation, which the oracle iterates in `long double`, to a relative 1e-9 within 500 updates;
@@ -184,6 +186,18 @@ The operators are built from a workbench context that holds the configuration, w
   - Parseval holds between the windowed frame and the spectrum, to a relative 1e-12.
 
 A first frame that begins before 256 samples have arrived isn't possible with this driver. W6's tests cover short and overfull windows on the toy graphs.
+
+### The MTL5 adapter
+
+`data<D>` is what an edge carries: its type is its domain, a symmetric matrix stores one element for `(i, j)` and `(j, i)`, and its bytes are deterministic. It does no arithmetic. A pattern's operators do theirs in MTL5, through `workbench/mtl5.hpp`:
+
+- `mtl5::view(d)`: for a dense `data<D>` of rank 1 or 2, an MTL5 `dense_vector` or row-major `dense2D` over `d.elements`, built with MTL5's external-pointer constructors. It doesn't copy or allocate. For a bounded leading extent, the view has `d.count()` rows.
+- `mtl5::unpack(d)` and `mtl5::pack(m, d)`: for a symmetric, triangular or diagonal `data<D>`, a fixed-size dense MTL5 matrix (stack storage, so no allocation) and back. `pack` of a symmetric domain takes the upper triangle, so a result's asymmetry is dropped rather than stored; in debug builds `pack` asserts that the two triangles agree to a tolerance it is given.
+- Tests (`tests/workbench/`): a view reads and writes the elements in place; `pack(unpack(d)) == d` for every structure; an MTL5 product through the views equals the same product written as loops; and the adapter allocates nothing (the counting allocator, W8).
+
+The workbench links `MTL5::mtl5`, the target that reflex's fetch already defines, at reflex's pin (5.20.0). Anatomy adds no fetch of its own. The SDK doesn't link MTL5 (design choice 7).
+
+Universal's number types aren't element types (D3), so a posit can't be a `data<D>`'s element. Admitting them is a change to `element_traits`, and is left to the step that sweeps a pattern's precision.
 
 ### `workbench_run`
 
@@ -218,7 +232,10 @@ Six PRs, each accepted on its own criteria. ADR 0005 was accepted with this plan
 2. `workbench_mlp` (`tests/workbench/`): W1, W2 and W3 on the MLP, and W5, a constant read by reference by every firing.
 3. `workbench_run mlp`, with a test that runs the tool on each exit code.
 
-**B4, the Kalman filter.** The pattern, and `workbench_kalman`: W1, W2 and W3. B4 has the first operator with two handlers that update its state in two regions, fired by two triggers at shared times.
+**B4, the Kalman filter.**
+1. `workbench/mtl5.hpp` and its tests (the MTL5 adapter, above), with `MTL5::mtl5` linked by the workbench only.
+2. The pattern, its arithmetic in MTL5 through the adapter, and `workbench_kalman`: W1, W2 and W3.
+3. B4 has the first operator with two handlers that update its state in two regions, fired by two triggers at shared times.
 
 **B5, the DSP spectral pipeline.** The pattern, and `workbench_dsp`: W1, W2 and W3. B5 is the first client of `accumulate` and of complex elements.
 
@@ -236,6 +253,7 @@ To be confirmed with this plan's PR.
 4. **`accumulate` latches when the reader's region begins, and drops the oldest on overflow.** Latching makes every firing of the reader see one window, whatever their order. Dropping the oldest and counting them is deterministic and allocates nothing, and the reader can tell that it lost values. The alternative, refusing to run, would make a run's result depend on whether a rate assumption held, with no record of it.
 5. **No interpreter support for the patterns.** The reference interpreter knows the toy operators, and gains `accumulate` on them (B2). A second implementation of an FFT or a Kalman update in the interpreter would be a third oracle. The closed-form one is a stronger check, and the hand-wired run already checks the graph's execution.
 6. **Tolerances, not byte-identity, across compilers.** Floating point differs between GCC, Clang and MSVC, and between their libms. The missions' determinism gates are byte-exact on one compiler, and so is W3 run to run. Across compilers, the oracle's tolerance is the check.
+7. **`data<D>` carries values; MTL5 computes with them, and the SDK stays free of MTL5.** An MTL5 type records a matrix's size, not its structure, a bounded extent or its name, so it can't be the domain G4 compares. Its symmetric and triangular matrices are views over full storage, so a covariance could drift asymmetric. Its fixed sizes can't hold a count, and its dynamic ones allocate. `data<D>` has none of those gaps but no arithmetic, so operators convert at their own boundary, in the workbench. Keeping MTL5 out of the SDK means a mission that builds against anatomy doesn't have to agree on an MTL5 version with reflex, synapse and cortex. The cost is the copy into and out of a packed domain at each firing: 16 and 10 elements for the Kalman filter's `P`.
 
 ## Not in this plan
 
