@@ -141,6 +141,20 @@ struct Rec {
     }
 };
 
+/// The values an accumulate edge brought, folded in order with their count
+/// and the number dropped: the toy that reads a window (docs/plan/workbench,
+/// B2). Its time is the latest value's, or zero for an empty window.
+template <std::uint64_t S, std::size_t N>
+struct Fold {
+    [[nodiscard]] Num apply(const fl::window<Num, N>& w) const {
+        std::uint64_t acc = w.count * 7 + w.dropped * 13;
+        for (std::size_t k = 0; k < w.count; ++k) {
+            acc = acc * 31 + w.items[k].v;
+        }
+        return Num{w.count > 0 ? w.items[w.count - 1].t : Timestamp{}, mix(acc, S)};
+    }
+};
+
 /// Two updates of one state, for the mutations only (T2): a region that
 /// fires both breaks G5. The generator never draws it, and it never runs.
 template <std::uint64_t S>
@@ -229,6 +243,19 @@ struct RecBinding {
     using handlers = fl::handlers<apply>;
 };
 
+/// A window of N values in, a value out.
+template <std::size_t N>
+struct FoldBinding {
+    using signature =
+        fl::signature<fl::ports<port<"x", fl::window<Num, N>, direction::in>, port<"y", Num, direction::out>>>;
+    struct apply : fl::handler<"apply", ins<"x">, outs<"y">> {
+        static Num call(const auto& op, const fl::window<Num, N>& x) {
+            return op.apply(x);
+        }
+    };
+    using handlers = fl::handlers<apply>;
+};
+
 /// Its out port is unused: a signature has one (S2).
 struct AccBinding {
     using signature = fl::signature<fl::ports<port<"x", Num, direction::in>, port<"y", Num, direction::out>>>;
@@ -266,6 +293,11 @@ using Rec1 = fl::registered<"Rec1", Rec<1>, RecBinding>;
 using Rec2 = fl::registered<"Rec2", Rec<2>, RecBinding>;
 using Rec3 = fl::registered<"Rec3", Rec<3>, RecBinding>;
 using Acc1 = fl::registered<"Acc1", Acc<1>, AccBinding>;
+/// A Fold's capacity is its salt's: 1, 3 and 8, so a window overflows often, sometimes, and rarely.
+inline constexpr std::size_t kFoldCapacity[] = {0, 1, 3, 8};
+using Fold1 = fl::registered<"Fold1", Fold<1, kFoldCapacity[1]>, FoldBinding<kFoldCapacity[1]>>;
+using Fold2 = fl::registered<"Fold2", Fold<2, kFoldCapacity[2]>, FoldBinding<kFoldCapacity[2]>>;
+using Fold3 = fl::registered<"Fold3", Fold<3, kFoldCapacity[3]>, FoldBinding<kFoldCapacity[3]>>;
 
 // ── Bodies of several operators ─────────────────────────────────────
 

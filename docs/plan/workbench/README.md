@@ -112,7 +112,7 @@ auto [w] = flow::fire<"apply">(frame, window_op, flow::accumulate<256>(filtered)
 - **What the reader reads:** `flow::window<M, N>`. It holds the values written since the reader's region last began, oldest first: `items` (a `std::array<M, N>`), their `count`, and `dropped`, how many older values didn't fit. Its domain is `record<field<"items", vector<E, bounded<N>>>, field<"dropped", scalar<std::uint64_t>>>`, where `E` is the element type of `M`'s domain if that is a scalar, or `M`'s record. A message whose domain has a shape is refused, until a pattern needs it.
 - **When:** the stack latches each accumulator as the reader's region begins, and empties it for the producer. So every firing of the region reads the same window, and the window doesn't depend on the order of firings within the region. Before the producer first writes, the window is empty: `count` and `dropped` are 0, as a `hold` reads its message value-initialized (flow-testing, P4).
 - **Overflow:** a producer that writes more than N values between two reader regions keeps the latest N and counts the rest in `dropped`. That is deterministic, allocates nothing, and lets the reader see what it lost. The DSP pattern's driver writes exactly N per frame, and its oracle requires `dropped == 0`.
-- **In the graph:** `Ref` gains `rate_rule::accumulate` and a `capacity`. `canonical()` writes ` accumulate <N>` where it writes ` hold`, and nothing for any other edge, so the canonical form and the hash of every graph without an `accumulate` edge are unchanged (W9). `mermaid()` draws the edge dotted, labelled `accumulate N`.
+- **In the graph:** `Ref` gains `rate_rule::accumulate` and a `capacity`. `canonical()` writes ` accumulate N`, with N the capacity, where it writes ` hold`, and nothing for any other edge, so the canonical form and the hash of every graph without an `accumulate` edge are unchanged (W9). `mermaid()` draws the edge dotted, labelled `accumulate N`.
 - **G7** now reads: an edge between regions has a rate rule, `hold` or `accumulate`; an edge within a region, or from a constant, has none.
 - **Each `accumulate` edge has its own accumulator.** One out port read by two regions fills two windows.
 
@@ -274,8 +274,8 @@ To be confirmed with this plan's PR.
 | Step | PR | State |
 |---|---|---|
 | B0: this plan | [#90](https://github.com/branes-ai/anatomy/pull/90) | merged |
-| B1: `flow::data<D>` and complex elements | [#91](https://github.com/branes-ai/anatomy/pull/91) | open |
-| B2: `accumulate` | | |
+| B1: `flow::data<D>` and complex elements | [#91](https://github.com/branes-ai/anatomy/pull/91) | merged |
+| B2: `accumulate` | [#93](https://github.com/branes-ai/anatomy/pull/93) | open |
 | B3: the workbench and the MLP | | |
 | B4: the Kalman filter | | |
 | B5: the DSP spectral pipeline | | |

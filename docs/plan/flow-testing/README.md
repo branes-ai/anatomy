@@ -58,6 +58,7 @@ The random graphs are built from a small set of operators in `tests/fixtures/flo
 | `Pair` | `apply(x) -> (y, z)`, two out ports | none |
 | `Rec` | `apply(x) -> r`, a record of two fields, so that a source can project one | none |
 | `Acc` | `add(x)` and `scale(x)`, two updates of one sum. For the mutations only: the generator doesn't draw it | update, update |
+| `Fold` | `apply(w) -> y`: a fold of an `accumulate` edge's window, its count and the number dropped. Its capacity is its salt's (1, 3, 8). The generator draws it after the rest of a recipe, from a second generator, so a recipe drawn without it is the one drawn before it existed ([workbench plan](../workbench/README.md), B2) | none |
 
 Each operator is a template over a salt, registered once per salt (`Unary1`, `Unary2`, ...), so that two operators of one kind compute different functions, and an edge read from the wrong instance shows up in the records. The salt is in the operator's registered name, which the `Graph` holds, so it needs no context: the stack builder builds every toy operator from an empty one.
 

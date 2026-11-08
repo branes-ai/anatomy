@@ -203,7 +203,8 @@ template <class F>
     }
     {
         Recipe r = valid;
-        auto at = find_source(r, [](const SourceSpec& s) { return !s.hold && s.from != From::constant; });
+        auto at = find_source(
+            r, [](const SourceSpec& s) { return !s.hold && s.accumulate == 0 && s.from != From::constant; });
         if (!at) {
             at = std::pair{add_firing(r, add_node(r, "nw", Kind::unary), 0, {{From::input, 0, 0, -1, false}}),
                            std::size_t{0}};
@@ -223,6 +224,23 @@ template <class F>
         }
         r.firings[at->first].in[at->second].hold = true;
         add("G7 a rate rule on an edge from a constant", r, "G7", port_key(r, *at));
+    }
+    {
+        // A Fold in input 0's region, accumulating input 0 (W7).
+        Recipe r = valid;
+        SourceSpec in0{From::input, 0, 0, -1, false};
+        in0.accumulate = toys::kFoldCapacity[1];
+        const std::size_t i = add_firing(r, add_node(r, "nfw", Kind::fold), 0, {in0});
+        add("G7 an accumulate edge within a region", r, "G7", port_key(r, {i, 0}));
+    }
+    {
+        // A Fold accumulating a constant (W7).
+        Recipe r = valid;
+        r.constants.push_back(gen::ConstantSpec{"cfx", gen::Num{}});
+        SourceSpec k{From::constant, r.constants.size() - 1, 0, -1, false};
+        k.accumulate = toys::kFoldCapacity[1];
+        const std::size_t i = add_firing(r, add_node(r, "nfk", Kind::fold), 0, {k});
+        add("G7 an accumulate edge from a constant", r, "G7", port_key(r, {i, 0}));
     }
 
     // G8: what a graph's class holds.

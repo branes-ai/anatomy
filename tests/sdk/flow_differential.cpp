@@ -1,8 +1,10 @@
 // The flow graph's differential tests (docs/plan/flow-testing, T1): random
 // graphs of toy operators, run by the CPU stack (flow::stack) and by the
 // reference interpreter, which must agree on every output after every input
-// (P1, P2); a hold before its first write (P4); a read of state before and
-// after its update (P5); and a running stack that allocates nothing (P9).
+// (P1, P2), accumulate edges among them (docs/plan/workbench, W6); a hold
+// before its first write (P4); a read of state before and after its update
+// (P5); and a running stack that allocates nothing (P9, W8).
+// tests/sdk/flow_accumulate.cpp tests the windows themselves.
 //
 // ANATOMY_FLOW_SEEDS sets how many seeds the differential test runs: 500 by
 // default, more for a longer run, which CI doesn't make.
@@ -95,7 +97,8 @@ TEST_CASE("flow differential: the stack runs what the graph says", "[flow][diffe
     std::size_t bodies = 0;
     std::size_t holds = 0;
     std::size_t projections = 0;
-    std::vector<std::size_t> kinds(gen::kKinds, 0);
+    std::size_t accumulates = 0;
+    std::vector<std::size_t> kinds(gen::kAllKinds, 0);
     for (std::uint64_t seed = 1; seed <= n; ++seed) {
         const gen::Recipe r = gen::generate(seed);
         const std::string diff = drive::from_interpreter(r, 1000);
@@ -112,19 +115,23 @@ TEST_CASE("flow differential: the stack runs what the graph says", "[flow][diffe
             for (const SourceSpec& s : f.in) {
                 holds += s.hold ? 1 : 0;
                 projections += s.field >= 0 ? 1 : 0;
+                accumulates += s.accumulate > 0 ? 1 : 0;
             }
         }
     }
-    // What the seeds covered: both classes, every kind, bodies, holds and projections.
+    // What the seeds covered: both classes, every kind, bodies, holds, projections and accumulates.
     INFO("seeds " << n << ": " << scoreboard << " scoreboard, " << bodies << " bodies, " << holds << " holds, "
-                  << projections << " projections");
+                  << projections << " projections, " << accumulates << " accumulates");
     CHECK(scoreboard > 0);
     CHECK(scoreboard < n);
     CHECK(bodies > 0);
     CHECK(holds > 0);
     CHECK(projections > 0);
-    for (const std::size_t k : kinds) {
-        CHECK(k > 0);
+    CHECK(accumulates > 0);
+    for (std::size_t k = 0; k < gen::kAllKinds; ++k) {
+        INFO(gen::kind_name(static_cast<gen::Kind>(k)));
+        // Acc is the mutations' only.
+        CHECK((static_cast<gen::Kind>(k) == gen::Kind::acc) == (kinds[k] == 0));
     }
 }
 
@@ -190,9 +197,16 @@ TEST_CASE("flow differential: P5 a read before an update sees the last state, on
 }
 
 TEST_CASE("flow differential: P9 a running stack allocates nothing", "[flow][differential]") {
-    // Seeds whose graphs are of several nodes; every toy message is of fixed size.
+    // Seeds whose graphs are of several nodes; every toy message is of fixed
+    // size, and so is every window (W8).
+    std::size_t accumulates = 0;
     for (std::uint64_t seed = 1; seed <= 20; ++seed) {
         const gen::Recipe r = gen::generate(seed);
+        for (const gen::FiringSpec& f : r.firings) {
+            for (const SourceSpec& s : f.in) {
+                accumulates += s.accumulate > 0 ? 1 : 0;
+            }
+        }
         auto b = gen::build(r);
         REQUIRE(b);
         const auto steps = stream(r, 1000, seed);
@@ -207,4 +221,5 @@ TEST_CASE("flow differential: P9 a running stack allocates nothing", "[flow][dif
         INFO(gen::to_string(r));
         CHECK(made == 0);
     }
+    CHECK(accumulates > 0);
 }

@@ -10,6 +10,12 @@
 // time taken from another region's input, a second region for a trigger, and
 // an output with no producer, or with two.
 //
+// Accumulate edges (docs/plan/workbench, B2) are drawn after the rest of the
+// recipe, from a second generator: Fold nodes, each firing last, reading
+// accumulate<N>() of an input or a firing of another region. A recipe drawn
+// without them (Draw::accumulate false) is the recipe main drew for its seed,
+// which the canonical goldens hold (tests/sdk/flow_goldens.cpp, W9).
+//
 // The randomness is std::mt19937_64's raw output, whose sequence the
 // standard fixes, mapped to ranges here: the standard distributions differ
 // between GCC, Clang and MSVC, and a seed must give one graph on all three.
@@ -28,6 +34,7 @@
 #include <random>
 #include <span>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -44,9 +51,11 @@ using toys::Two;
 
 // ── Recipes ─────────────────────────────────────────────────────────
 
-/// The kinds the generator draws, then Acc, which only the mutations use.
-enum class Kind : std::uint8_t { unary, binary, counter, clock, pair, rec, acc };
+/// The kinds the generator draws first; then Acc, which only the mutations
+/// use; then Fold, which reads a window, and which it draws after the rest.
+enum class Kind : std::uint8_t { unary, binary, counter, clock, pair, rec, acc, fold };
 inline constexpr std::size_t kKinds = 6;
+inline constexpr std::size_t kAllKinds = 8;
 
 /// A handler of a toy kind, as the generator needs it.
 struct HandlerSpec {
@@ -65,12 +74,13 @@ struct HandlerSpec {
         {{"apply", 1, false, {false, false}}},
         {{"apply", 1, false, {true}}},
         {{"add", 1, false, {}}, {"scale", 1, false, {}}},
+        {{"apply", 1, false, {false}}},
     };
     return table[static_cast<std::size_t>(k)];
 }
 
 [[nodiscard]] inline const char* kind_name(Kind k) {
-    static constexpr const char* names[] = {"Unary", "Binary", "Counter", "Clock", "Pair", "Rec", "Acc"};
+    static constexpr const char* names[] = {"Unary", "Binary", "Counter", "Clock", "Pair", "Rec", "Acc", "Fold"};
     return names[static_cast<std::size_t>(k)];
 }
 
@@ -103,6 +113,7 @@ struct SourceSpec {
     std::size_t port = 0;   ///< the firing's out port
     int field = -1;         ///< the field projected from a record: 0 for "a", 1 for "b"; else -1
     bool hold = false;
+    std::size_t accumulate = 0;  ///< accumulate<N>: N, which is the reading Fold's capacity; else 0
 };
 
 struct FiringSpec {
@@ -173,7 +184,10 @@ struct Recipe {
                        (s.field < 0 ? "" : (s.field == 0 ? ".a" : ".b"));
                 break;
             }
-            o << (k > 0 ? ", " : "") << (s.hold ? "hold(" + what + ")" : what);
+            o << (k > 0 ? ", " : "")
+              << (s.hold             ? "hold(" + what + ")"
+                  : s.accumulate > 0 ? "accumulate<" + std::to_string(s.accumulate) + ">(" + what + ")"
+                                     : what);
         }
         o << ")\n";
     }
@@ -211,13 +225,21 @@ private:
     std::mt19937_64 e_;
 };
 
+/// What generate() draws.
+struct Draw {
+    bool accumulate = true;  ///< Fold nodes, and their accumulate edges
+};
+
 /// A random valid graph. Each untimed handler fires once, in one region,
 /// and each time handler in some regions, once in each (G6); Counter.add is
 /// the only update, so no region updates a state twice (G5). Every in port's
 /// source is drawn from what the region can read: its input, the constants,
 /// and its earlier firings' out ports, directly; and hold() of every other
 /// input, and of every firing described before it in another region (G7).
-[[nodiscard]] inline Recipe generate(std::uint64_t seed) {
+/// Then, with Draw::accumulate, up to two Fold nodes, each firing once, last,
+/// in a region of its own choice, reading accumulate<N>() of a value input or
+/// an out port of another region.
+[[nodiscard]] inline Recipe generate(std::uint64_t seed, Draw draw = {}) {
     Rng rng(seed);
     Recipe r;
     r.seed = seed;
@@ -308,6 +330,43 @@ private:
             f.in.push_back(can[rng.below(can.size())]);
         }
     }
+    if (draw.accumulate) {
+        Rng more(seed ^ 0xACC0'0000'0000'0000ULL);
+        const std::size_t n_folds = more.below(3);
+        for (std::size_t j = 0; j < n_folds; ++j) {
+            const std::size_t region = regions[more.below(regions.size())];
+            using From = SourceSpec::From;
+            std::vector<SourceSpec> can;
+            for (std::size_t k = 0; k < r.inputs.size(); ++k) {
+                if (!r.inputs[k].tick && k != region) {
+                    can.push_back(SourceSpec{From::input, k, 0, -1, false});
+                }
+            }
+            for (std::size_t d = 0; d < r.firings.size(); ++d) {
+                const FiringSpec& e = r.firings[d];
+                if (e.region == region) {
+                    continue;
+                }
+                const auto& outs = handlers_of(r.nodes[e.node].kind)[e.handler].outs;
+                for (std::size_t p = 0; p < outs.size(); ++p) {
+                    if (outs[p]) {
+                        can.push_back(SourceSpec{From::firing, d, p, 0, false});
+                        can.push_back(SourceSpec{From::firing, d, p, 1, false});
+                    } else {
+                        can.push_back(SourceSpec{From::firing, d, p, -1, false});
+                    }
+                }
+            }
+            const auto salt = static_cast<unsigned>(1 + more.below(3));
+            if (can.empty()) {
+                continue;  // the region reads no other's value
+            }
+            SourceSpec src = can[more.below(can.size())];
+            src.accumulate = toys::kFoldCapacity[salt];
+            r.nodes.push_back(NodeSpec{"f" + std::to_string(j), Kind::fold, salt, false});
+            r.firings.push_back(FiringSpec{r.nodes.size() - 1, 0, region, {src}});
+        }
+    }
     return r;
 }
 
@@ -343,13 +402,17 @@ using Node = std::variant<fl::node<toys::UnaryBinding>,
                           fl::node<toys::ClockBinding>,
                           fl::node<toys::PairBinding>,
                           fl::node<toys::RecBinding>,
-                          fl::node<toys::AccBinding>>;
+                          fl::node<toys::AccBinding>,
+                          fl::node<toys::FoldBinding<toys::kFoldCapacity[1]>>,
+                          fl::node<toys::FoldBinding<toys::kFoldCapacity[2]>>,
+                          fl::node<toys::FoldBinding<toys::kFoldCapacity[3]>>>;
 using Out = std::variant<fl::value<Num>, fl::value<Two>>;
 
-/// A source, as a firing takes it: a value, held or not.
+/// A source, as a firing takes it: a value, held or not; or accumulated, for a Fold.
 struct Src {
     fl::value<Num> v;
     bool held = false;
+    std::size_t accumulate = 0;
 };
 
 template <class F>
@@ -385,6 +448,8 @@ void with_op(Kind k, unsigned salt, F f) {
         return pick(std::type_identity<Rec1>{}, std::type_identity<Rec2>{}, std::type_identity<Rec3>{});
     case Kind::acc:
         return f(std::type_identity<Acc1>{});
+    case Kind::fold:
+        return pick(std::type_identity<Fold1>{}, std::type_identity<Fold2>{}, std::type_identity<Fold3>{});
     }
 }
 
@@ -432,11 +497,29 @@ inline std::vector<Out> fire(fl::scope& s, const Node& n, std::size_t h, const I
         return with(in[0], [&](const auto& x) { return outs_of(fl::fire<"apply">(s, std::get<4>(n), x)); });
     case 5:
         return with(in[0], [&](const auto& x) { return outs_of(fl::fire<"apply">(s, std::get<5>(n), x)); });
-    default:
+    case 6:
         if (h == 0) {
             return with(in[0], [&](const auto& x) { return outs_of(fl::fire<"add">(s, std::get<6>(n), x)); });
         }
         return with(in[0], [&](const auto& x) { return outs_of(fl::fire<"scale">(s, std::get<6>(n), x)); });
+    case 7:
+    case 8:
+    case 9:
+        // A Fold's capacity is its salt's; the recipe's source says it too.
+        if (in[0].accumulate != toys::kFoldCapacity[n.index() - 6]) {
+            throw std::logic_error("gen: a Fold" + std::to_string(n.index() - 6) + " accumulates " +
+                                   std::to_string(toys::kFoldCapacity[n.index() - 6]) + " values, not " +
+                                   std::to_string(in[0].accumulate));
+        }
+        break;
+    }
+    switch (n.index()) {
+    case 7:
+        return outs_of(fl::fire<"apply">(s, std::get<7>(n), fl::accumulate<toys::kFoldCapacity[1]>(in[0].v)));
+    case 8:
+        return outs_of(fl::fire<"apply">(s, std::get<8>(n), fl::accumulate<toys::kFoldCapacity[2]>(in[0].v)));
+    default:
+        return outs_of(fl::fire<"apply">(s, std::get<9>(n), fl::accumulate<toys::kFoldCapacity[3]>(in[0].v)));
     }
 }
 
@@ -504,7 +587,7 @@ inline std::vector<Out> fire(fl::scope& s, const Node& n, std::size_t h, const I
                 break;
             }
             }
-            in.push_back(detail::Src{v, s.hold});
+            in.push_back(detail::Src{v, s.hold, s.accumulate});
         }
         written.push_back(detail::fire(
             *scopes[f.region], nodes[f.node], f.handler, inputs[at == r.at.end() ? f.region : at->second], in));
