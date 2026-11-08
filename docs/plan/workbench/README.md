@@ -255,7 +255,7 @@ To be confirmed with this plan's PR.
 | Step | PR | State |
 |---|---|---|
 | B0: this plan | [#90](https://github.com/branes-ai/anatomy/pull/90) | merged |
-| B1: `flow::data<D>` and complex elements | this PR | open |
+| B1: `flow::data<D>` and complex elements | [#91](https://github.com/branes-ai/anatomy/pull/91) | open |
 | B2: `accumulate` | | |
 | B3: the workbench and the MLP | | |
 | B4: the Kalman filter | | |
