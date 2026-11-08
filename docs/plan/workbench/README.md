@@ -244,7 +244,7 @@ To be confirmed with this plan's PR.
 
 | Step | PR | State |
 |---|---|---|
-| B0: this plan | | open |
+| B0: this plan | [#90](https://github.com/branes-ai/anatomy/pull/90) | open |
 | B1: `flow::data<D>` and complex elements | | |
 | B2: `accumulate` | | |
 | B3: the workbench and the MLP | | |
