@@ -46,6 +46,7 @@
 #include <branes/anatomy/flow/domains.hpp>
 #include <branes/anatomy/flow/graph.hpp>
 #include <branes/anatomy/flow/signature.hpp>
+#include <branes/anatomy/flow/window.hpp>
 #include <branes/anatomy/msg/time.hpp>
 #include <branes/anatomy/result.hpp>
 #include <branes/anatomy/slots/slot_context.hpp>
@@ -254,12 +255,68 @@ using access_fn = const void* (*)(const void*);
 
 inline constexpr std::size_t no_slot = std::numeric_limits<std::size_t>::max();
 
+/// An accumulate edge's accumulator, untyped, as the stack runs it.
+struct accumulator_ops {
+    std::shared_ptr<void> (*make)();         ///< an empty accumulator
+    std::shared_ptr<void> (*make_window)();  ///< an empty window, which the reader reads
+    void (*push)(void* acc, const void* m);  ///< the producer wrote m
+    void (*latch)(void* acc, void* w);       ///< the reader's region begins: fill w, and empty the accumulator
+};
+
+/// The latest N values of M written since the last latch, in a ring, and how
+/// many older ones were dropped. Pre, for push and latch: `acc` is a ring<M,
+/// N>, `m` an M, `w` a window<M, N>.
+template <class M, std::size_t N>
+struct ring {
+    std::array<M, N> items{};
+    std::size_t head = 0;  ///< the oldest value's position
+    std::size_t size = 0;
+    std::uint64_t dropped = 0;
+
+    [[nodiscard]] static std::shared_ptr<void> make() {
+        return std::make_shared<ring>();
+    }
+    [[nodiscard]] static std::shared_ptr<void> make_window() {
+        return std::make_shared<window<M, N>>();
+    }
+    static void push(void* acc, const void* m) {
+        ring& r = *static_cast<ring*>(acc);
+        const M& x = *static_cast<const M*>(m);
+        if (r.size < N) {
+            r.items[(r.head + r.size) % N] = x;
+            ++r.size;
+        } else {
+            r.items[r.head] = x;  // over the oldest, which is dropped
+            r.head = (r.head + 1) % N;
+            ++r.dropped;
+        }
+    }
+    static void latch(void* acc, void* w) {
+        ring& r = *static_cast<ring*>(acc);
+        window<M, N>& out = *static_cast<window<M, N>*>(w);
+        for (std::size_t k = 0; k < N; ++k) {
+            out.items[k] = k < r.size ? r.items[(r.head + k) % N] : M{};  // W2
+        }
+        out.count = r.size;
+        out.dropped = r.dropped;
+        r.head = 0;
+        r.size = 0;
+        r.dropped = 0;
+    }
+};
+
+template <class M, std::size_t N>
+inline constexpr accumulator_ops accumulator_ops_v{
+    &ring<M, N>::make, &ring<M, N>::make_window, &ring<M, N>::push, &ring<M, N>::latch};
+
 /// What a value is, untyped: where the graph reads it from (Ref), where the
 /// stack keeps it (a slot), and the projections taken from it.
 struct source {
     Ref ref;
     std::size_t slot = no_slot;
     std::vector<access_fn> access;  ///< outermost first, one per ref.path entry
+    /// An accumulate edge's accumulator, if it carries a message type; else null.
+    const accumulator_ops* accumulator = nullptr;
 };
 }  // namespace detail
 
@@ -297,6 +354,14 @@ struct held : detail::source {
     using type = X;
 };
 
+/// A value read in another region than its own through an accumulator of
+/// capacity N: the window of the values written since the reader's region
+/// last began (flow/window.hpp).
+template <class X, std::size_t N>
+struct accumulated : detail::source {
+    using type = window_t<X, N>;
+};
+
 /// The input whose time a time handler takes.
 struct time_of {
     std::string input;
@@ -313,7 +378,24 @@ template <class X>
 [[nodiscard]] held<X> hold(const value<X>& v) {
     held<X> h{static_cast<const detail::source&>(v)};
     h.ref.rate = rate_rule::hold;
+    h.ref.capacity = 0;
+    h.accumulator = nullptr;
     return h;
+}
+
+/// `v`, read in another region than its own as the values written since that
+/// region last began: the latest N of them, oldest first, and how many older
+/// ones didn't fit. Each accumulate edge has an accumulator of its own.
+template <std::size_t N, class X>
+[[nodiscard]] accumulated<X, N> accumulate(const value<X>& v) {
+    static_assert(N >= 1, "G7: an accumulator holds at least one value");
+    accumulated<X, N> a{static_cast<const detail::source&>(v)};
+    a.ref.rate = rate_rule::accumulate;
+    a.ref.capacity = N;
+    if constexpr (!is_data_v<X>) {
+        a.accumulator = &detail::accumulator_ops_v<X, N>;
+    }
+    return a;
 }
 
 template <class M>
@@ -351,6 +433,8 @@ template <class X>
 X source_type(const value<X>&);
 template <class X>
 X source_type(const held<X>&);
+template <class X, std::size_t N>
+window_t<X, N> source_type(const accumulated<X, N>&);
 
 template <class S>
 concept source_like = requires(const S& s) { source_type(s); };
@@ -728,6 +812,15 @@ private:
     [[nodiscard]] const input_rec* find_input(std::string_view name) const;
     [[nodiscard]] std::size_t add_slot(std::shared_ptr<void> slot);
 
+    /// An accumulate edge, as the stack will run it.
+    struct accumulator_rec {
+        detail::source from;     ///< the producer's value, as the edge reads it
+        std::size_t region = 0;  ///< the reader's region
+        std::size_t acc = 0;     ///< slots: the accumulator, and the window the reader reads
+        std::size_t window = 0;
+        const detail::accumulator_ops* ops = nullptr;
+    };
+
     Graph graph_;
     bool runs_ = false;     ///< a stack_builder's: the graph is also run
     bool stacked_ = false;  ///< build_stack() has taken the operators and slots
@@ -741,6 +834,7 @@ private:
     std::vector<std::shared_ptr<void>> slots_;       ///< every input's, constant's and out port's message
     std::vector<std::shared_ptr<void>> operators_;   ///< per instance
     std::vector<std::vector<firing_rec>> runs_of_;   ///< per region, its firings, to run
+    std::vector<accumulator_rec> accumulators_;      ///< one per accumulate edge
     std::optional<config::ConfigError> error_;
 };
 
@@ -794,6 +888,12 @@ void build_operator(G& g, std::size_t n) {
 /// value-initialized when the stack is built, so a hold, or an output, read
 /// before its region first runs reads that.
 ///
+/// An accumulate edge's accumulator takes a copy of each value its producer
+/// writes: an input's when it is handed, a firing's out port's after the
+/// firing. As the reader's region begins, the stack writes the window the
+/// reader reads, and empties the accumulator, so every firing of the region
+/// reads one window. Before the producer first writes, the window is empty.
+///
 /// An observer, if it is given one, is called after each firing with what the
 /// firing wrote (docs/plan/flow-testing, T4: flow/trace.hpp writes it to a
 /// trace). With none, the stack runs as it does without: one test per firing.
@@ -809,6 +909,9 @@ public:
     void input(const input_port<M>& in, const M& m) {
         const input_rec& r = inputs_[in.index];
         *static_cast<M*>(r.slot) = m;
+        for (const push& p : r.pushes) {
+            p.fn(p.acc, p.from);
+        }
         if (r.region != detail::no_slot) {
             run(r.region, observer_ && r.time ? r.time(r.slot) : Timestamp{});
         }
@@ -837,6 +940,18 @@ private:
     friend class builder;
     stack() = default;
 
+    /// A value written, into an accumulator that an accumulate edge reads.
+    struct push {
+        void (*fn)(void*, const void*) = nullptr;
+        void* acc = nullptr;
+        const void* from = nullptr;
+    };
+    /// An accumulator's window, written as its reader's region begins.
+    struct latch {
+        void (*fn)(void*, void*) = nullptr;
+        void* acc = nullptr;
+        void* window = nullptr;
+    };
     struct firing {
         detail::thunk_fn thunk = nullptr;
         void* op = nullptr;
@@ -845,20 +960,28 @@ private:
         std::size_t at = detail::no_slot;  ///< the input whose time it takes
         std::vector<std::string> ports;    ///< the out ports' names
         std::vector<std::type_index> types;
+        std::vector<push> pushes;  ///< the accumulators its out ports feed
     };
     struct input_rec {
         void* slot = nullptr;
         std::size_t region = detail::no_slot;
         std::function<Timestamp(const void*)> time;
+        std::vector<push> pushes;  ///< the accumulators it feeds
     };
 
     /// Run a region; `now` is its input's time, for the observer.
     void run(std::size_t region, Timestamp now) {
+        for (const latch& l : latches_[region]) {
+            l.fn(l.acc, l.window);
+        }
         const std::vector<firing>& fs = regions_[region];
         for (std::size_t i = 0; i < fs.size(); ++i) {
             const firing& f = fs[i];
             const Timestamp t = f.at == detail::no_slot ? Timestamp{} : inputs_[f.at].time(inputs_[f.at].slot);
             f.thunk(f.op, f.in.data(), f.out.data(), t);
+            for (const push& p : f.pushes) {
+                p.fn(p.acc, p.from);
+            }
             if (observer_) {
                 observer_(fired{region, i, now, f.ports, f.types, f.out});
             }
@@ -868,6 +991,7 @@ private:
     std::vector<std::shared_ptr<void>> slots_;
     std::vector<std::shared_ptr<void>> operators_;
     std::vector<std::vector<firing>> regions_;
+    std::vector<std::vector<latch>> latches_;  ///< per region, the windows it reads
     std::vector<input_rec> inputs_;
     std::vector<const void*> outputs_;
     Graph graph_;
@@ -975,7 +1099,7 @@ template <class H, class B, class... S>
     using sig = typename B::signature;
     using in_types = typename port_values<sig, typename H::in>::type;
     using out_types = typename port_values<sig, typename H::out>::type;
-    static_assert((source_like<S> && ...), "G3: a source is a value, an input, a constant, or hold(...) of one");
+    static_assert((source_like<S> && ...), "G3: a source is a value, an input, a constant, or hold(...) or accumulate<N>(...) of one");
     static_assert(sizeof...(S) == H::in::size, "G3: every in port of the handler has one source");
     static_assert(edges_match<in_types, S...>(), "G4: every edge joins two ports of the same domain");
     static_assert(messages_match<in_types, S...>(),

@@ -22,9 +22,12 @@ namespace branes::anatomy::flow {
 /// What a handler does with its operator's state (ADR 0004, decision 4).
 enum class state_role : std::uint8_t { none, read, update };
 
-/// The rule on an edge between regions that run at different rates. Step 2
-/// implements `hold` only: the reader takes the latest value written.
-enum class rate_rule : std::uint8_t { none, hold };
+/// The rule on an edge between regions that run at different rates: `hold`,
+/// the reader takes the latest value written; `accumulate`, the reader takes
+/// the values written since its region last began, up to a capacity
+/// (flow/window.hpp; docs/plan/workbench, B2). `queue` is the model's third,
+/// for when a pattern or a mission needs it.
+enum class rate_rule : std::uint8_t { none, hold, accumulate };
 
 /// A baseline's class (ADR 0004, decision 6).
 enum class baseline_class : std::uint8_t { scoreboard, research };
@@ -38,6 +41,7 @@ struct Ref {
     std::string port;               ///< the input, the constant, or the firing's out port
     std::vector<std::string> path;  ///< the record fields projected, outermost first
     rate_rule rate = rate_rule::none;
+    std::size_t capacity = 0;  ///< the values an accumulate edge keeps; 0 for any other
 
     friend bool operator==(const Ref&, const Ref&) = default;
 };
@@ -92,7 +96,8 @@ struct Output {
 ///
 /// Invariants: G1–G9 hold (docs/plan/flow-graph); every Ref of kind firing
 /// names an earlier firing of its own region, or one of another region with
-/// rate hold.
+/// rate hold or accumulate; a Ref's capacity is at least 1 if its rate is
+/// accumulate, and 0 otherwise.
 struct Graph {
     std::string mission;
     baseline_class kind = baseline_class::scoreboard;
@@ -107,7 +112,9 @@ struct Graph {
 
 /// The graph's canonical form: one line per composite, instance, region,
 /// firing, edge and output, in the graph's order. Two graphs are equal when
-/// their canonical forms are.
+/// their canonical forms are. An edge's rate rule ends its line: ` hold`, or
+/// ` accumulate N` with N its capacity; an edge with none adds nothing, so a
+/// graph without an accumulate edge has the form it had before there was one.
 [[nodiscard]] std::string canonical(const Graph& g);
 
 /// SHA-256 (hex) of canonical(g): the composition hash of a graph build.
@@ -116,7 +123,8 @@ struct Graph {
 /// The graph as a Mermaid flowchart, for reading: a subgraph per region with
 /// its firings in order, each labelled with its index, a node per input, constant and output, and an edge
 /// per in port, labelled with the port and the fields projected. An edge
-/// that holds across regions is dotted. It is not hashed; canonical() is.
+/// between regions is dotted, and labelled `hold` or `accumulate N`. It is
+/// not hashed; canonical() is.
 [[nodiscard]] std::string mermaid(const Graph& g);
 
 /// G8, between a baseline file and the graph built for it: the file's class

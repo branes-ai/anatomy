@@ -485,7 +485,8 @@ TEST_CASE("flow graph: G7 an edge between regions holds, and no other", "[flow][
         (void)fire<"step">(tick, c.controller, estimate, p.limits, alerts, p.marks);
     });
     CHECK(e.key == "tick[2][3]");
-    CHECK(e.message == "G7: an edge between regions has a rate rule: 'marks' fires 'marks', and needs hold(marks)");
+    CHECK(e.message == "G7: an edge between regions has a rate rule: 'marks' fires 'marks', and needs hold(marks) or "
+                        "accumulate<N>(marks)");
     e = scoreboard_error([](builder& g) {
         const test::Ports p = test::ports(g);
         const test::Composites c = test::composites<test::Bodies<>>(g);
@@ -496,7 +497,7 @@ TEST_CASE("flow graph: G7 an edge between regions holds, and no other", "[flow][
     });
     CHECK(e.key == "tick[0][0]");
     CHECK(e.message == "G7: an edge between regions has a rate rule: estimate is written in region 'frame', and needs "
-                       "hold(estimate)");
+                       "hold(estimate) or accumulate<N>(estimate)");
     e = scoreboard_error([](builder& g) {
         const test::Ports p = test::ports(g);
         const test::Composites c = test::composites<test::Bodies<>>(g);

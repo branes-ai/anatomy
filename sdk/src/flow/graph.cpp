@@ -24,6 +24,20 @@ std::string in_quotes(std::string_view s) {
     return "'" + std::string(s) + "'";
 }
 
+/// An edge's rate rule, as its canonical line ends: nothing for an edge with
+/// none, so a graph without accumulate edges keeps the form it had before them.
+std::string rule(const Ref& ref) {
+    switch (ref.rate) {
+    case rate_rule::hold:
+        return " hold";
+    case rate_rule::accumulate:
+        return " accumulate " + std::to_string(ref.capacity);
+    case rate_rule::none:
+        break;
+    }
+    return "";
+}
+
 bool contains(const std::vector<std::string>& v, std::string_view s) {
     return std::find(v.begin(), v.end(), s) != v.end();
 }
@@ -44,7 +58,7 @@ std::string text(const Ref& ref) {
     for (const auto& f : ref.path) {
         s += "." + f;
     }
-    return s + (ref.rate == rate_rule::hold ? " hold" : "");
+    return s + rule(ref);
 }
 
 /// A source as a mission writes it: `x`, or `x.f` for project<"f">(x).
@@ -260,7 +274,7 @@ scope builder::region_of(const std::string& input) {
 }
 
 void builder::check_source(const Ref& ref, const std::string& trigger, const std::string& key) {
-    const bool hold = ref.rate == rate_rule::hold;
+    const bool hold = ref.rate != rate_rule::none;  // hold or accumulate
     switch (ref.from) {
     case Ref::kind::constant:
         if (hold) {
@@ -278,7 +292,7 @@ void builder::check_source(const Ref& ref, const std::string& trigger, const std
         } else if (from != trigger && !hold) {
             fail(key,
                  "G7: an edge between regions has a rate rule: " + in_quotes(ref.port) + " fires " + in_quotes(from) +
-                     ", and needs hold(" + written(ref) + ")");
+                     ", and needs hold(" + written(ref) + ") or accumulate<N>(" + written(ref) + ")");
         }
         return;
     }
@@ -288,7 +302,7 @@ void builder::check_source(const Ref& ref, const std::string& trigger, const std
         } else if (ref.region != trigger && !hold) {
             fail(key,
                  "G7: an edge between regions has a rate rule: " + written(ref) + " is written in region " +
-                     in_quotes(ref.region) + ", and needs hold(" + written(ref) + ")");
+                     in_quotes(ref.region) + ", and needs hold(" + written(ref) + ") or accumulate<N>(" + written(ref) + ")");
         }
         return;
     }
@@ -348,6 +362,23 @@ std::vector<detail::source> builder::fire(scope& s,
         inner.state_ = h.state;
         inner.outer_ = fired;
         return n.body[hi](inner, at, in);
+    }
+
+    // Each accumulate edge's accumulator, and the window its reader reads in its place.
+    for (std::size_t k = 0; runs_ && k < in.size(); ++k) {
+        if (in[k].ref.rate != rate_rule::accumulate) {
+            continue;
+        }
+        if (in[k].accumulator == nullptr) {
+            fail(key + "[" + std::to_string(k) + "]",
+                 "the CPU stack runs ports that carry message types: an accumulate edge carries none");
+            continue;
+        }
+        const detail::accumulator_ops* ops = in[k].accumulator;
+        accumulator_rec a{in[k], s.region_, add_slot(ops->make()), add_slot(ops->make_window()), ops};
+        in[k].slot = a.window;
+        in[k].access.clear();
+        accumulators_.push_back(std::move(a));
     }
 
     const std::string op = graph_.instances[n.instance].name;
@@ -491,7 +522,7 @@ result<stack, config::ConfigError> builder::build_stack() && {
                 region = r;
             }
         }
-        st.inputs_.push_back(stack::input_rec{slots_[in.slot].get(), region, in.time});
+        st.inputs_.push_back(stack::input_rec{slots_[in.slot].get(), region, in.time, {}});
     }
     for (std::size_t r = 0; r < runs_of_.size(); ++r) {
         std::vector<stack::firing> region;
@@ -502,7 +533,7 @@ result<stack, config::ConfigError> builder::build_stack() && {
             if (op == nullptr || f.thunk == nullptr) {
                 return config::ConfigError{graph_.mission, key, "the CPU stack has no operator to fire"};
             }
-            stack::firing run{f.thunk, op, {}, {}, f.at, f.ports, f.types};
+            stack::firing run{f.thunk, op, {}, {}, f.at, f.ports, f.types, {}};
             for (std::size_t k = 0; k < f.in.size(); ++k) {
                 const void* in = resolve(f.in[k]);
                 if (in == nullptr) {
@@ -518,6 +549,34 @@ result<stack, config::ConfigError> builder::build_stack() && {
             region.push_back(std::move(run));
         }
         st.regions_.push_back(std::move(region));
+    }
+    // Each accumulator is fed by its producer, an input or a firing, and
+    // latched as its reader's region begins.
+    st.latches_.resize(st.regions_.size());
+    for (const accumulator_rec& a : accumulators_) {
+        const std::string key = g->regions[a.region].trigger;
+        const void* from = resolve(a.from);
+        if (from == nullptr) {
+            return config::ConfigError{
+                graph_.mission, key, "the CPU stack has no value for an accumulate edge's source: it is no builder's"};
+        }
+        void* acc = slots_[a.acc].get();
+        const stack::push p{a.ops->push, acc, from};
+        const Ref& ref = a.from.ref;
+        if (ref.from == Ref::kind::input) {
+            const input_rec* in = find_input(ref.port);
+            if (in == nullptr) {
+                return config::ConfigError{graph_.mission, key, "the CPU stack has no input " + in_quotes(ref.port)};
+            }
+            st.inputs_[static_cast<std::size_t>(in - inputs_.data())].pushes.push_back(p);
+        } else {
+            for (std::size_t r = 0; r < g->regions.size(); ++r) {
+                if (g->regions[r].trigger == ref.region) {
+                    st.regions_[r][ref.firing].pushes.push_back(p);
+                }
+            }
+        }
+        st.latches_[a.region].push_back(stack::latch{a.ops->latch, acc, slots_[a.window].get()});
     }
     for (const output_rec& o : outputs_) {
         const void* out = resolve(o.from);
@@ -634,10 +693,11 @@ std::string mermaid(const Graph& g) {
         for (const auto& f : ref.path) {
             label += "." + f;
         }
-        if (ref.rate == rate_rule::hold) {
-            label += label.empty() ? "hold" : " (hold)";
+        const std::string ruled = rule(ref);  // " hold", " accumulate N", or nothing
+        if (!ruled.empty()) {
+            label += label.empty() ? ruled.substr(1) : " (" + ruled.substr(1) + ")";
         }
-        const std::string arrow = ref.rate == rate_rule::hold ? " -.->" : " -->";
+        const std::string arrow = ruled.empty() ? " -->" : " -.->";
         return "    " + source(ref) + arrow + (label.empty() ? "" : "|\"" + mermaid_text(label) + "\"|") + " " + to +
                "\n";
     };
