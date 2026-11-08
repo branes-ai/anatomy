@@ -28,6 +28,9 @@ This plan adds what the first three patterns need of those, and the patterns the
   - **the MLP:** two layers in different element types, with weights as constants;
   - **the Kalman filter:** constant velocity, with a symmetric covariance as state, predicting on a clock and updating on a bounded measurement;
   - **the DSP spectral pipeline:** a FIR, `accumulate` into frames, a window, an FFT and a magnitude;
+  - **Optical Flow:** the optical flow transformation
+  - **a ResNet18 CNN:** a CNN bringing in the GGUF/GGML/MTL5 machinery
+  - **a Transformer DNN:** a ViT or DETR, bringing in the GGUF/GGML/MTL5 machinery
 - **`workbench_run`:** a tool that runs a pattern, reports its oracle, and writes its trace and its graph. It is the first graph tool that needs no mission.
 
 **What doesn't change:**
@@ -189,9 +192,9 @@ workbench_run <mlp|kalman|dsp> [--inputs N] [--seed S] [--trace run.brtrace] [--
 
 ## Acceptance
 
-Six PRs, each accepted on its own criteria. ADR 0005 is accepted before the first code PR (B1) merges.
+Six PRs, each accepted on its own criteria. ADR 0005 was accepted with this plan's PR (B0).
 
-**B0, this plan.** The plan, its design choices confirmed, and ADR 0005's current state.
+**B0, this plan.** The plan, its design choices confirmed, and ADR 0005 accepted.
 
 **B1, core: `flow::data<D>` and complex elements.**
 1. `flow/data.hpp`, and complex element types in `flow/domain.hpp`.

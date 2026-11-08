@@ -1,6 +1,6 @@
 # ADR 0005: an application tier over the checked graph, developed on graph patterns
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-11-05
 **Related:** [ADR 0004](0004-domain-flow-composition.md) (the graph, and its step 4 export, which this ADR widens); [the domain flow computational model](../arch/domain-flow-model.md) (layers 1 to 5, leaf operators, phases, and the resource contract); [racing-drone ADR 0008](https://github.com/branes-ai/racing-drone/blob/main/docs/adr/0008-anatomy-mission-framework.md) (change the core only with a client in hand); [the flow-testing plan](../plan/flow-testing/README.md) (the toy operators and the reference interpreter); [racing-drone's precision sweep](https://github.com/branes-ai/racing-drone/blob/main/docs/plan/precision-sweep/README.md) (the one design-space tool a mission has today)
 
@@ -119,4 +119,4 @@ The options considered:
 - **Bounded shapes and symbolic extents** are bound from configuration. Whether an optimizer may vary them (a 4-state filter or a 6-state one, a 256-point FFT or a 1024-point one, a 64 × 64 grid or a 1024 × 1024 one) or only the configuration may, is open. The patterns are where this is first decided.
 - **Whether an evaluation runs remote,** on hardware rather than on the host's CPU. `embodied-ai-architect` has SSH and Kubernetes back ends. The evaluation command's interface should not preclude them.
 
-**Current state:** proposed on 2026-11-05. Step 1 is planned ([plan](../plan/workbench/README.md), [anatomy#89](https://github.com/branes-ai/anatomy/issues/89)); no code has started.
+**Current state:** proposed on 2026-11-05, accepted on 2026-11-07. Step 1 is planned ([plan](../plan/workbench/README.md), [anatomy#89](https://github.com/branes-ai/anatomy/issues/89)); no code has started.
