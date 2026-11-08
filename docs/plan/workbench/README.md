@@ -124,7 +124,7 @@ The model's other uses of an accumulator, such as IMU samples integrated between
 workbench/
 ├── include/branes/anatomy/workbench/
 │   ├── driver.hpp      # sources at declared rates, merged into one stream; runs a pattern's stack
-│   ├── sources.hpp     # a clock, a sequence, a noisy constant-velocity trajectory, a sum of tones
+│   ├── sources.hpp     # a clock and a sequence (B3); a noisy constant-velocity trajectory (B4), a sum of tones (B5)
 │   ├── codecs.hpp      # trace codecs for data<D> and window<M, N>
 │   ├── mtl5.hpp        # MTL5 views of data<D>, and packing for its structured domains (B4)
 │   ├── pattern.hpp     # what a pattern provides (below)
@@ -144,7 +144,7 @@ workbench/
 - its hand-wired run (W1);
 - its oracle (W2): given the configuration and the outputs, a report of each check, with its value, its tolerance, and whether it passed.
 
-The operators are built from a workbench context that holds the configuration, with `from_context`, as a mission's are.
+The operators are built from a workbench context that holds the configuration, with `from_context`, as a mission's are. `pattern.hpp` states the interface a pattern meets in C++: `graph`, `sources`, a `sample` that `collect` takes after each input, `oracle` over the samples, and `codecs`; `workbench::run<P>` builds, drives and traces any pattern that meets it.
 
 **The driver** merges the sources into one stream in time order, hands each input to the stack, and collects the outputs after each. Two inputs at the same time go in the order the pattern declares its sources: the fixed order between simultaneous triggers that the model requires (section 8). The noise is drawn from `std::mt19937_64`'s raw output, mapped by the workbench's own code, as the flow tests' generator does, because the standard distributions differ between GCC, Clang and MSVC.
 
@@ -204,9 +204,10 @@ Universal's number types aren't element types (D3), so a posit can't be a `data<
 
 ```text
 workbench_run <mlp|kalman|dsp> [--inputs N] [--seed S] [--trace run.brtrace] [--mermaid g.mmd] [--canonical g.txt]
+              [--tolerance-scale K]
 ```
 
-`workbench_run` runs a pattern with its default configuration and prints its oracle's report. It writes the trace (with the workbench's codecs) and the graph's Mermaid or canonical form when asked. It exits 0 if every check passes, 1 if one fails, and 2 on a usage error, as `trace_compare` does. `trace_compare` reads its traces, so two runs, or two element types, can be compared edge by edge. The graph host, which runs a graph document without a rebuild, is step 4's. This tool runs only the three patterns compiled into it.
+`workbench_run` runs a pattern with its default configuration and prints its oracle's report. It writes the trace (with the workbench's codecs) and the graph's Mermaid or canonical form when asked. It exits 0 if every check passes, 1 if one fails, and 2 on a usage error, as `trace_compare` does. `--tolerance-scale K` multiplies every check's upper tolerance by K, to show a pattern's margin; its test runs K = 0 for the exit code 1. `trace_compare` reads its traces, so two runs, or two element types, can be compared edge by edge. The graph host, which runs a graph document without a rebuild, is step 4's. This tool runs only the three patterns compiled into it.
 
 ## Acceptance
 
@@ -275,8 +276,8 @@ To be confirmed with this plan's PR.
 |---|---|---|
 | B0: this plan | [#90](https://github.com/branes-ai/anatomy/pull/90) | merged |
 | B1: `flow::data<D>` and complex elements | [#91](https://github.com/branes-ai/anatomy/pull/91) | merged |
-| B2: `accumulate` | [#93](https://github.com/branes-ai/anatomy/pull/93) | open |
-| B3: the workbench and the MLP | | |
+| B2: `accumulate` | [#93](https://github.com/branes-ai/anatomy/pull/93) | merged |
+| B3: the workbench and the MLP | | open |
 | B4: the Kalman filter | | |
 | B5: the DSP spectral pipeline | | |
 | B6: docs | | |

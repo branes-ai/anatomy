@@ -13,6 +13,27 @@ foreach(source ${SDK_SRC})
     target_compile_definitions(${name} PRIVATE ANATOMY_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 endforeach()
 
+# ── The workbench (workbench/) ─────────────────────────────────────────────
+# The patterns' fidelity, oracles and determinism (docs/plan/workbench, W1–W5),
+# and workbench_run's exit codes.
+if(ANATOMY_BUILD_WORKBENCH)
+    file(GLOB WORKBENCH_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/workbench/*.cpp)
+    compile_all(FOLDER "Tests/workbench" LIBS branes::anatomy_workbench SOURCES ${WORKBENCH_SRC})
+    add_test(NAME apps.workbench_run
+        COMMAND ${CMAKE_COMMAND}
+            -DWORKBENCH_RUN=$<TARGET_FILE:anatomy_workbench_run>
+            -DTRACE_COMPARE=$<TARGET_FILE:anatomy_trace_compare>
+            -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/apps_workbench_run
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/apps/workbench_run_test.cmake)
+    # The MLP's layer 2 refuses layer 1's f32 output: an edge's element type is its own (G4).
+    add_library(workbench_g4_element OBJECT EXCLUDE_FROM_ALL ${CMAKE_CURRENT_SOURCE_DIR}/compile_fail/workbench_g4_element.cpp)
+    target_link_libraries(workbench_g4_element PRIVATE branes::anatomy_workbench)
+    add_test(NAME compile_fail.workbench.g4_element
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target workbench_g4_element --config $<CONFIG>)
+    set_tests_properties(compile_fail.workbench.g4_element PROPERTIES
+        PASS_REGULAR_EXPRESSION "G4: every edge joins two ports of the same domain" RESOURCE_LOCK anatomy_build_tree)
+endif()
+
 # ── Mobility profile (mobility/) ───────────────────────────────────────────
 file(GLOB MOBILITY_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mobility/*.cpp)
 compile_all(FOLDER "Tests/mobility" LIBS branes::anatomy_mobility SOURCES ${MOBILITY_SRC})
@@ -102,6 +123,10 @@ anatomy_header_check(NAME headers_mobility ROOT ${PROJECT_SOURCE_DIR}/mobility/i
 anatomy_header_check(NAME headers_glue ROOT ${PROJECT_SOURCE_DIR}/glue/include LIBS branes::anatomy_glue)
 anatomy_header_check(NAME headers_mobility_sim ROOT ${PROJECT_SOURCE_DIR}/sim/include
     LIBS branes::anatomy_mobility_sim universal::universal)
+if(ANATOMY_BUILD_WORKBENCH)
+    anatomy_header_check(NAME headers_workbench ROOT ${PROJECT_SOURCE_DIR}/workbench/include
+        LIBS branes::anatomy_workbench)
+endif()
 
 # ── Code that must not compile ─────────────────────────────────────────────
 # A TimeBase whose Wide type has fewer significand digits than T is a

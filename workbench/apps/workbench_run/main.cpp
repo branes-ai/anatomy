@@ -1,0 +1,132 @@
+// workbench_run: a pattern of the workbench, run with its default
+// configuration, and its oracle's report (docs/plan/workbench).
+//
+//   workbench_run <mlp> [--inputs N] [--seed S] [--trace run.brtrace]
+//                 [--mermaid g.mmd] [--canonical g.txt] [--tolerance-scale K]
+//
+// Exits 0 if every check passes, 1 if one fails, and 2 on a usage error or a
+// file it can't write, as trace_compare does. --tolerance-scale multiplies
+// every check's tolerance by K, to show how much margin the pattern has.
+// This tool runs only the patterns compiled into it: the MLP, until B4 and
+// B5 add the Kalman filter and the DSP pipeline.
+
+#include <branes/anatomy/flow/graph.hpp>
+#include <branes/anatomy/harness/args.hpp>
+#include <branes/anatomy/workbench/pattern.hpp>
+#include <branes/anatomy/workbench/patterns/mlp.hpp>
+
+#include <charconv>
+#include <cstdint>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <system_error>
+
+namespace an = branes::anatomy;
+namespace wb = branes::anatomy::workbench;
+
+namespace {
+
+int usage(const std::string& message) {
+    std::fprintf(stderr, "workbench_run: %s\n", message.c_str());
+    return 2;
+}
+
+constexpr const char* kUsage =
+    "usage: workbench_run <mlp> [--inputs N] [--seed S] [--trace run.brtrace] [--mermaid g.mmd] "
+    "[--canonical g.txt] [--tolerance-scale K]";
+
+template <class T>
+std::optional<T> number(const std::string& s) {
+    T v{};
+    const auto [end, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
+    if (ec != std::errc{} || end != s.data() + s.size()) {
+        return std::nullopt;
+    }
+    return v;
+}
+
+bool write_file(const std::filesystem::path& path, const std::string& text) {
+    std::ofstream out(path, std::ios::binary);
+    out << text;
+    return static_cast<bool>(out);
+}
+
+template <class P>
+int run(typename P::config cfg, const an::harness::Args& args, std::size_t inputs, double scale) {
+    if (const auto mmd = args.value("mermaid"), txt = args.value("canonical"); mmd || txt) {
+        const auto g = wb::describe<P>(cfg);
+        if (!g) {
+            return usage(g.error().to_string());
+        }
+        if (mmd && !write_file(*mmd, an::flow::mermaid(*g))) {
+            return usage("cannot write " + *mmd);
+        }
+        if (txt && !write_file(*txt, an::flow::canonical(*g))) {
+            return usage("cannot write " + *txt);
+        }
+    }
+    wb::run_options opt;
+    opt.inputs = inputs;
+    if (const auto t = args.value("trace")) {
+        opt.trace = *t;
+    }
+    const auto samples = wb::run<P>(cfg, opt);
+    if (!samples) {
+        return usage(samples.error());
+    }
+    const wb::report r = wb::scaled(P::oracle(cfg, *samples), scale);
+    std::fputs(r.to_string().c_str(), stdout);
+    return r.passed() ? 0 : 1;
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+    if (argc < 2 || std::string_view(argv[1]).starts_with("--")) {
+        return usage(kUsage);
+    }
+    const std::string pattern = argv[1];
+    auto args = an::harness::Args::parse(argc - 1, argv + 1, {});
+    if (!args) {
+        return usage(args.error());
+    }
+    if (auto bad = args->only({"inputs", "seed", "trace", "mermaid", "canonical", "tolerance-scale"})) {
+        return usage(*bad);
+    }
+    std::size_t inputs = 100;
+    if (const auto n = args->value("inputs")) {
+        const auto v = number<std::size_t>(*n);
+        if (!v || *v == 0) {
+            return usage("--inputs takes a positive integer, not '" + *n + "'");
+        }
+        inputs = *v;
+    }
+    std::optional<std::uint64_t> seed;
+    if (const auto s = args->value("seed")) {
+        seed = number<std::uint64_t>(*s);
+        if (!seed) {
+            return usage("--seed takes an unsigned integer, not '" + *s + "'");
+        }
+    }
+    double scale = 1.0;
+    if (const auto k = args->value("tolerance-scale")) {
+        const auto v = number<double>(*k);
+        if (!v || !(*v >= 0)) {
+            return usage("--tolerance-scale takes a number of at least 0, not '" + *k + "'");
+        }
+        scale = *v;
+    }
+
+    if (pattern == "mlp") {
+        wb::mlp::config cfg;
+        if (seed) {
+            cfg.seed = *seed;
+        }
+        return run<wb::mlp::pattern>(cfg, *args, inputs, scale);
+    }
+    return usage("no pattern '" + pattern + "': this build runs mlp\n" + kUsage);
+}
