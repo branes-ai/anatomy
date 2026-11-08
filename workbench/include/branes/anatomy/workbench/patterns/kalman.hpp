@@ -623,7 +623,8 @@ struct pattern {
             const M4 p = full(s.posterior_cov);
             const bool pd = cholesky(p, l);
             not_pd += pd ? 0 : 1;
-            not_pd += cholesky(full(s.posterior_cov_f32), l) ? 0 : 1;
+            M4 l32{};  // its own: the NEES below solves with the f64 filter's factor, l
+            not_pd += cholesky(full(s.posterior_cov_f32), l32) ? 0 : 1;
             const std::size_t count = fixes_of(c, truth, k).count();
             ++k;
             ++updates;
