@@ -5,6 +5,7 @@
 ///
 /// A pattern P is a type with:
 ///   P::name                         its name (`mlp`)
+///   P::default_inputs               how many inputs workbench_run hands it, unless told
 ///   P::config                       its configuration, a struct with defaults: rates, parameters, a seed
 ///   P::context                      what its operators are built from (from_context): holds the configuration
 ///   P::ports                        its graph's external ports

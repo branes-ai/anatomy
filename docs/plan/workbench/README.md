@@ -169,8 +169,8 @@ The operators are built from a workbench context that holds the configuration, w
 - **Oracle:**
   - `P` is positive definite after every firing: its Cholesky factorization succeeds;
   - with one fix per update, `P` after the update converges to the steady-state solution of the discrete Riccati equation, which the oracle iterates in `long double`, to a relative 1e-9 within 500 updates;
-  - over fixed seeds, the normalized estimation error squared (NEES) of 2000 updates averages within its 95 % chi-square bounds;
-  - the `f32` and `f64` instantiations agree to 1e-4 relative.
+  - over fixed seeds, the normalized estimation error squared (NEES) of 2000 updates averages within its 95 % chi-square bounds. The NEES is taken at every 25th update: a filter's errors are correlated from one update to the next, so the mean over every update varies about 3.5 times more than the bounds of independent samples allow, while 25 updates (2.5 s) apart the samples are nearly independent. As a 95 % test, it fails about one seed in twenty (of seeds 1 to 100, six), so the tests' seeds are fixed, each with its mean well inside the bounds;
+  - the `f32` and `f64` instantiations agree to 1e-4 relative. The graph runs both, `Kalman_f64` and `Kalman_f32`, the `f32` one fed the fixes through a `Cast`, so one run's samples hold both.
 
 **The DSP spectral pipeline.** Samples at 8192 Hz, frames of N = 256.
 
@@ -192,7 +192,7 @@ A first frame that begins before 256 samples have arrived isn't possible with th
 `data<D>` is what an edge carries: its type is its domain, a symmetric matrix stores one element for `(i, j)` and `(j, i)`, and two values with the same rows in use compare equal (A2). A trace holds its elements and count as the workbench's codec writes them, not the object's bytes, which can include padding. It does no arithmetic. A pattern's operators do theirs in MTL5, through `workbench/mtl5.hpp`:
 
 - `mtl5::view(d)`: for a dense `data<D>` of rank 1 or 2, an MTL5 `dense_vector` or row-major `dense2D` over `d.elements`, built with MTL5's external-pointer constructors. It doesn't copy or allocate. For a bounded leading extent, the view has `d.count()` rows, so a caller resizes `d` before it takes the view.
-- In MTL5 5.20.0, copying such a view, or copy-assigning one view to another, detaches the destination: it allocates storage of its own, and the `data<D>` behind it isn't written. Assigning an expression (`y = A * x`, `P += Q`) writes in place only when its dimensions match the view's; otherwise MTL5 resizes, which detaches too. So `view(d)` returns a wrapper that can't be copied or copy-assigned, and gives its MTL5 object only by const reference, to read and to use in expressions. Writes go through the wrapper: element access, and `[[nodiscard]] bool mtl5::assign(dst, expr)` and `mtl5::add(dst, expr)`, as `resize` is. Each returns false and writes nothing if the expression's dimensions differ from the view's, and otherwise writes in place. `expr` may be another view, which is copied element by element.
+- In MTL5 5.20.0, copying such a view, or copy-assigning one view to another, detaches the destination: it allocates storage of its own, and the `data<D>` behind it isn't written. Assigning an expression (`y = A * x`, `P += Q`) writes in place only when its dimensions match the view's; otherwise MTL5 resizes, which detaches too. So `view(d)` returns a wrapper that can't be copied or copy-assigned, and gives its MTL5 object only by const reference, to read and to use in expressions. Writes go through the wrapper: element access, and `[[nodiscard]] bool mtl5::assign(dst, expr)`, `mtl5::add(dst, expr)` and `mtl5::mult(a, b, dst)`, as `resize` is. MTL5 5.20.0's `operator*` of two matrices, or of a matrix and a vector, allocates its result, so a product is `mtl5::mult`, which calls `mtl::mult` into `dst`'s own elements; `dst` may also be a fixed-size stack temporary. Each returns false and writes nothing if the expression's dimensions differ from the view's, and otherwise writes in place. `expr` may be another view, which is copied element by element.
 - `mtl5::unpack(d)` and `mtl5::pack(m, d)`: for a symmetric, triangular or diagonal `data<D>`, a fixed-size dense MTL5 matrix (stack storage, so no allocation) and back. `pack` of a symmetric domain takes the upper triangle, so a result's asymmetry is dropped rather than stored; in debug builds `pack` asserts that the two triangles agree to a tolerance it is given.
 - Tests (`tests/workbench/`): a view reads and writes the elements in place; `assign` and `add` of an expression, and `assign` of one view to another, write the `data<D>` behind it; an expression of other dimensions, such as a 3-vector into the view of a bounded value whose count is 0, returns false and leaves the `data<D>` unchanged; the wrapper is neither copy constructible nor copy assignable (a static check); `pack(unpack(d)) == d` for every structure; an MTL5 product through the views equals the same product written as loops; and the adapter allocates nothing (the counting allocator, W8).
 
@@ -277,7 +277,7 @@ To be confirmed with this plan's PR.
 | B0: this plan | [#90](https://github.com/branes-ai/anatomy/pull/90) | merged |
 | B1: `flow::data<D>` and complex elements | [#91](https://github.com/branes-ai/anatomy/pull/91) | merged |
 | B2: `accumulate` | [#93](https://github.com/branes-ai/anatomy/pull/93) | merged |
-| B3: the workbench and the MLP | [#94](https://github.com/branes-ai/anatomy/pull/94) | open |
-| B4: the Kalman filter | | |
+| B3: the workbench and the MLP | [#94](https://github.com/branes-ai/anatomy/pull/94) | merged |
+| B4: the Kalman filter | | open |
 | B5: the DSP spectral pipeline | | |
 | B6: docs | | |

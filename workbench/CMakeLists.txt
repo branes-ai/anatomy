@@ -10,7 +10,9 @@
 add_library(branes_anatomy_workbench INTERFACE)
 add_library(branes::anatomy_workbench ALIAS branes_anatomy_workbench)
 target_include_directories(branes_anatomy_workbench INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(branes_anatomy_workbench INTERFACE branes::anatomy)
+# MTL5 is the target reflex's fetch defines, at reflex's pin; anatomy fetches none
+# of its own, and the SDK doesn't link it (docs/plan/workbench, design choice 7).
+target_link_libraries(branes_anatomy_workbench INTERFACE branes::anatomy MTL5::mtl5)
 
 # The target is anatomy_workbench_run, so it can't clash with a mission's, and the binary workbench_run.
 add_executable(anatomy_workbench_run apps/workbench_run/main.cpp)
