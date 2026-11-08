@@ -72,7 +72,11 @@ template <class D>
 struct data {
     using domain = D;
     std::array<typename D::element_type, stored_elements_v<D>> elements{};
-    std::size_t count = max_count;   // a bounded leading extent's count; its bound otherwise
+
+    // A bounded leading extent's count; its bound otherwise.
+    [[nodiscard]] constexpr std::size_t count() const noexcept;
+    // Sets the count, if n is at most the bound; else returns false and leaves it unchanged.
+    [[nodiscard]] constexpr bool resize(std::size_t n) noexcept;
 
     // Row-major for dense. Symmetric and triangular: packed, the upper triangle row by row.
     // Diagonal: the diagonal.
@@ -87,7 +91,7 @@ template <class D> struct domain_of<data<D>> { using type = D; };
 
 - A message of type `data<D>` is its own domain. Two ports that carry `data<D>` match on domain and on message type, and G4 refuses a port of any other shape, structure or element type at compile time.
 - The storage is a `std::array` of fixed size, so a `data<D>` holds nothing on the heap, and a slot of it allocates once, when the stack is built.
-- **Bounded extents:** only the leading extent may be bounded, and `count` is the number of its rows in use, which is at most the bound. More than one bounded extent is refused by a `static_assert`, until a pattern needs it.
+- **Bounded extents:** only the leading extent may be bounded, and `count()` is the number of its rows in use. The count is private, and `resize(n)` refuses a count above the bound, so the bound holds for every `data<D>` (W4). A domain with no bounded extent has its full count, and `resize` accepts only that. More than one bounded extent is refused by a `static_assert`, until a pattern needs it.
 - **Structure:** `(i, j)` of a symmetric matrix is `(j, i)`: one stored element. Writing outside a triangle is a precondition violation, checked in debug builds.
 - A record's element type has no C++ type to store, so `data<D>` takes domains of the element types above only. A message that is a record stays a struct with its `domain_of`, as the missions' are.
 
@@ -156,10 +160,10 @@ The operators are built from a workbench context that holds the configuration, w
 
 **The Kalman filter.** Constant velocity in the plane: state `x = (px, py, vx, vy)`, covariance `P` a symmetric 4 × 4 `data`.
 
-- `Kalman` is one operator with three handlers. Two update its state: `predict`, a time handler fired by a 100 Hz clock, and `update`, fired by `fixes`. The third, `estimate`, reads its state.
+- `Kalman` is one operator with four handlers. Two update its state: `predict`, a time handler fired by a 100 Hz clock, and `update`, fired by `fixes`. Two read it: `prior` and `posterior`.
 - `fixes` is a measurement of up to 4 position fixes with a count (`data<matrix<double, bounded<4>, dim<2>>>`), arriving at 10 Hz on clock ticks, and sometimes with none.
 - At a time shared by the clock and the fixes, the clock goes first, so the update applies to the predicted state.
-- The update is in Joseph form. `estimate` runs in the clock region after `predict`, and writes the output.
+- The update is in Joseph form. `prior` runs in the clock region after `predict` and writes `x` and `P` to the `prior` output. `posterior` runs in the fixes region after `update` and writes them to the `posterior` output, which the oracle's checks of the update read.
 - The signature declares `x` and `P` as its state domains.
 - **Oracle:**
   - `P` is positive definite after every firing: its Cholesky factorization succeeds;
