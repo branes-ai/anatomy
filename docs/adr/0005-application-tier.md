@@ -119,4 +119,4 @@ The options considered:
 - **Bounded shapes and symbolic extents** are bound from configuration. Whether an optimizer may vary them (a 4-state filter or a 6-state one, a 256-point FFT or a 1024-point one, a 64 × 64 grid or a 1024 × 1024 one) or only the configuration may, is open. The patterns are where this is first decided.
 - **Whether an evaluation runs remote,** on hardware rather than on the host's CPU. `embodied-ai-architect` has SSH and Kubernetes back ends. The evaluation command's interface should not preclude them.
 
-**Current state:** proposed on 2026-11-05. No step has started.
+**Current state:** proposed on 2026-11-05. Step 1 is planned ([plan](../plan/workbench/README.md), [anatomy#89](https://github.com/branes-ai/anatomy/issues/89)); no code has started.
