@@ -17,6 +17,7 @@
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace {
@@ -113,11 +114,14 @@ TEST_CASE("mlp: W3 a seed's traces are byte-identical run to run", "[workbench][
     CHECK_FALSE(ab->difference);
     CHECK(ab->records == 50 * 6);
     CHECK(bytes_of(a) == bytes_of(b));
-    // Every edge has a codec: a payload in each record.
-    auto reader = fl::trace_reader::open(a);
-    REQUIRE(reader);
-    for (auto rec = reader->next(); rec && *rec; rec = reader->next()) {
-        CHECK((*rec)->payload.has_value());
+    // Every edge has a codec: a payload in each record. The reader closes the
+    // file at the end of its block, before Windows will remove it.
+    {
+        auto reader = fl::trace_reader::open(a);
+        REQUIRE(reader);
+        for (auto rec = reader->next(); rec && *rec; rec = reader->next()) {
+            CHECK((*rec)->payload.has_value());
+        }
     }
     // Another seed: other weights, so the first firing already differs.
     const auto ac = fl::compare_traces(a, c);
@@ -125,7 +129,8 @@ TEST_CASE("mlp: W3 a seed's traces are byte-identical run to run", "[workbench][
     REQUIRE(ac->difference);
     CHECK(ac->difference->find("x[0].y (linear1.apply)") != std::string::npos);
     for (const auto& p : {a, b, c}) {
-        std::filesystem::remove(p);
+        std::error_code ec;
+        std::filesystem::remove(p, ec);
     }
 }
 
