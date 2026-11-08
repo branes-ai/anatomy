@@ -189,11 +189,12 @@ A first frame that begins before 256 samples have arrived isn't possible with th
 
 ### The MTL5 adapter
 
-`data<D>` is what an edge carries: its type is its domain, a symmetric matrix stores one element for `(i, j)` and `(j, i)`, and its bytes are deterministic. It does no arithmetic. A pattern's operators do theirs in MTL5, through `workbench/mtl5.hpp`:
+`data<D>` is what an edge carries: its type is its domain, a symmetric matrix stores one element for `(i, j)` and `(j, i)`, and two values with the same rows in use compare equal (A2). A trace holds its elements and count as the workbench's codec writes them, not the object's bytes, which can include padding. It does no arithmetic. A pattern's operators do theirs in MTL5, through `workbench/mtl5.hpp`:
 
 - `mtl5::view(d)`: for a dense `data<D>` of rank 1 or 2, an MTL5 `dense_vector` or row-major `dense2D` over `d.elements`, built with MTL5's external-pointer constructors. It doesn't copy or allocate. For a bounded leading extent, the view has `d.count()` rows.
+- In MTL5 5.20.0, copying such a view, or copy-assigning one view to another, detaches the destination: it allocates storage of its own, and the `data<D>` behind it isn't written. Assigning an expression (`y = A * x`, `P += Q`) and element access write in place. So `view(d)` returns a wrapper that can't be copied or copy-assigned, and gives its MTL5 object only by reference. `mtl5::assign(dst, src)` copies one view into another element by element.
 - `mtl5::unpack(d)` and `mtl5::pack(m, d)`: for a symmetric, triangular or diagonal `data<D>`, a fixed-size dense MTL5 matrix (stack storage, so no allocation) and back. `pack` of a symmetric domain takes the upper triangle, so a result's asymmetry is dropped rather than stored; in debug builds `pack` asserts that the two triangles agree to a tolerance it is given.
-- Tests (`tests/workbench/`): a view reads and writes the elements in place; `pack(unpack(d)) == d` for every structure; an MTL5 product through the views equals the same product written as loops; and the adapter allocates nothing (the counting allocator, W8).
+- Tests (`tests/workbench/`): a view reads and writes the elements in place; an expression assigned to a view, and `assign` between two views, write the `data<D>` behind it; the wrapper's copy and copy assignment don't compile; `pack(unpack(d)) == d` for every structure; an MTL5 product through the views equals the same product written as loops; and the adapter allocates nothing (the counting allocator, W8).
 
 The workbench links `MTL5::mtl5`, the target that reflex's fetch already defines, at reflex's pin (5.20.0). Anatomy adds no fetch of its own. The SDK doesn't link MTL5 (design choice 7).
 
