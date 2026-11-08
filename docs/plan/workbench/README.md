@@ -278,6 +278,6 @@ To be confirmed with this plan's PR.
 | B1: `flow::data<D>` and complex elements | [#91](https://github.com/branes-ai/anatomy/pull/91) | merged |
 | B2: `accumulate` | [#93](https://github.com/branes-ai/anatomy/pull/93) | merged |
 | B3: the workbench and the MLP | [#94](https://github.com/branes-ai/anatomy/pull/94) | merged |
-| B4: the Kalman filter | | open |
+| B4: the Kalman filter | [#95](https://github.com/branes-ai/anatomy/pull/95) | open |
 | B5: the DSP spectral pipeline | | |
 | B6: docs | | |
