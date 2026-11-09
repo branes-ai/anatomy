@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.12.0](https://github.com/branes-ai/anatomy/compare/v0.11.5...v0.12.0) (2026-11-09)
+
+
+### Features
+
+* **flow:** add the accumulate rate rule (workbench B2) ([#93](https://github.com/branes-ai/anatomy/issues/93)) ([cbd5437](https://github.com/branes-ai/anatomy/commit/cbd54372a7ddd245efaf3cb69c3dcb2651b40d5a))
+* **flow:** store a domain's value, and admit complex elements ([#91](https://github.com/branes-ai/anatomy/issues/91)) ([48eb9f0](https://github.com/branes-ai/anatomy/commit/48eb9f0ba2c867c76b3b84922a78a1b474856739))
+* **workbench:** add the dsp spectral pipeline pattern (workbench B5) ([#96](https://github.com/branes-ai/anatomy/issues/96)) ([2dab569](https://github.com/branes-ai/anatomy/commit/2dab569220d3e4a05963b8b64417f4b1ea5bd7a7))
+* **workbench:** add the mtl5 adapter and the kalman filter pattern (workbench B4) ([#95](https://github.com/branes-ai/anatomy/issues/95)) ([b8fea33](https://github.com/branes-ai/anatomy/commit/b8fea338785e090750f8ae09f7e213e2a94b1fde))
+* **workbench:** add the workbench and the mlp pattern (workbench B3) ([#94](https://github.com/branes-ai/anatomy/issues/94)) ([8f6f735](https://github.com/branes-ai/anatomy/commit/8f6f73501792b8b7eff93563ece50158bab019a5))
+
 ## [0.11.5](https://github.com/branes-ai/anatomy/compare/v0.11.4...v0.11.5) (2026-11-05)
 
 
