@@ -43,7 +43,7 @@ cd::table table_for() {
 
 }  // namespace
 
-TEST_CASE("compute: a reduction is uniform, with R·C multiply-adds", "[flow][compute][W10][W13]") {
+TEST_CASE("compute: a reduction is uniform, with R*C multiply-adds", "[flow][compute][W10][W13]") {
     const cd::report r = checked<toys::Linear34, "apply">();
     REQUIRE(r.stages.size() == 1);
     CHECK(r.stages[0] == cd::shape::uniform);
