@@ -46,9 +46,9 @@ Each property has an id, which the tests name. They continue step 1's W1–W9, w
 
 | Id | Property |
 |---|---|
-| W10 | **The checks hold:** every computational domain declared in the workbench passes K1–K8. Each check refuses a declaration that breaks it, naming its id: a compile-fail test for K1 and K2, and a mutation test for K3–K8 |
+| W10 | **The checks hold:** every computational domain declared in the workbench passes K1–K7, and K8 classifies it as its pattern states. Each of K1–K7 refuses a declaration that breaks it, naming its id: a compile-fail test for K1 and K2, and a mutation test for K3–K7. K8 refuses nothing, so its test holds the toys' and the leaves' classifications to the expected ones |
 | W11 | **Fidelity of the declaration:** for every leaf of every pattern, its declaration evaluated on the inputs of each of its firings in a run gives the handler's outputs and state. The tolerance comes from the arithmetic. It is exact where the declaration fixes the order of every operation the handler does |
-| W12 | **The dependences are complete:** a declaration evaluated in its lexicographic order and in 20 random orders that its dependences allow gives bit-identical results. A read the dependences don't order before its write is reported as K3, not computed |
+| W12 | **The order is complete:** a declaration evaluated in its deterministic order and in 20 random orders that its dependences allow gives bit-identical results. So no `inout` port or state is written in place before a read of its old value that the declaration leaves unordered. A read of a variable before it is written is reported as K3, not computed |
 | W13 | **Operation counts:** the count derived from each leaf's declaration equals its closed form: `R·C` multiply-adds for `Linear`, 63 per sample for the FIR, `(N/2)·log₂N` butterflies for the FFT, and so on for each pattern below |
 | W14 | **Carried edges:** a read through a carried edge sees what its producer wrote in the region's previous firing, and its message value-initialized before the first. `flow::stack` and the reference interpreter agree on random graphs with carried edges. The checks refuse a carried edge between regions, or from a constant or an input, naming G7 |
 | W15 | **Divided domains:** the halo derived for a tiling of a stencil's domain is the reach of its dependences. The domain evaluated tile by tile, each reading only its tile and its halo, equals the undivided evaluation bit for bit |
@@ -87,7 +87,8 @@ struct apply : fl::handler<"apply", fl::ins<"w", "x">, fl::outs<"y">> {
 
 The spelling is C1's to settle. What a `system` holds is fixed here, because step 3's document and step 6's lowering read it:
 
-- **Parameters,** each bound to an extent of a port or a state, or to an integer. One declaration serves every instantiation of its operator: the `Linear` above describes both `Linear_f32_32x16` and `Linear_f64_8x32`. A bounded extent binds its bound, and the evaluator runs it over the count at run time (the Kalman filter's fixes).
+- **Parameters,** each bound to an extent of a port or a state, or to an integer. One declaration serves every instantiation of its operator: the `Linear` above describes both `Linear_f32_32x16` and `Linear_f64_8x32`.
+- **Counts:** a bounded extent has two parameters, its bound (`s.extent`) and its count (`s.count`). The count is known only at run time: the index space over a bounded extent runs to its count, and the checks enumerate every count from 0 to the bound (the Kalman filter's fixes). A bounded out port or state declares its count as an affine expression of parameters, `s.out("y").count(s.count("x"))`, and its output face writes only the rows below it. The evaluator sets the count before it writes the rows, so an empty input gives an empty output, as `CastFixes` gives one today.
 - **The index space:** named indices, each with affine bounds in the parameters and the indices before it, plus further affine constraints. That admits a box, a triangle (QR, `j ≤ i`) and a band.
 - **Variables and equations:** `v(p) = e` over the whole space, or over a subdomain given by affine constraints. `e` is an expression of literals, parameters, reads, and the operations below. A variable read at a point outside the subdomain where it is defined must be given there by an `init`: a literal, a port's element, or a state's.
 - **Reads,** each with its index function:
@@ -96,6 +97,7 @@ The spelling is C1's to settle. What a `system` holds is fixed here, because ste
   - **non-affine:** an index function that uses `xor`, shifts or `mod` of the point, such as the FFT's butterfly partner `p xor 2ˢ`. It is allowed, and the description marks it, so the compiler knows the system isn't a SURE (design choice 6).
 - **Faces:**
   - **an input face** is where a port or a state is read: the set of points that read it, and the index function from a point to the element read;
+  - **a record** is read and written by field path: `s.in("w", "items")(k)` and `s.in("w", "dropped")()` for the window `Framer` reads. A parameter binds an extent or a count of a field path in the same way, `s.count("w", "items")`. A field is a domain with faces of its own, so each check treats it as a port;
   - **an output face** is where a port or a state is written: `s.out("y")(i) = s.on(j == C − 1, …)` writes `y(i)` from the points of the face `j = C − 1`;
   - **an `inout` port or a state** has both. The state's input face reads the previous firing's value, and its output face writes the next one's.
 - **Operations:** `+`, `−`, `×` and `÷`; `sqrt`, `tanh`, `exp`, `abs`; a comparison and `select`; complex multiply, conjugate, real and imaginary parts and magnitude; and `cast` to an element type. Each operation is counted by kind for W13. A transcendental is one operation of its kind, not an expansion. An operation the description lacks is added with the first pattern that needs it.
@@ -112,8 +114,8 @@ Like G1–G9, the checks report the invariant broken and where: the operator, th
 | K1 | **Names:** the indices and variables of a system have distinct, non-empty names. Every port and state it names is the binding's, and the handler's `ins` and `outs` include each port it reads or writes. An `in` port is only read, an `out` port is only written, and an `inout` port or a state is read before it is written. Each read's arity is its target's rank |
 | K2 | **Parameters:** each parameter is bound to an integer, or to an extent of a port or state the system names, of a rank that has it |
 | K3 | **Every read is defined:** at every point of the space, every variable read is defined there by an equation at a point the dependences order before it, or by an `init` |
-| K4 | **Reads stay inside their ports:** every port, state or intermediate read, at every point that reads it, is at an index inside its domain. For a bounded extent, that means inside its bound |
-| K5 | **Every output is written exactly once:** for each out port, state and intermediate, every element it stores is written by exactly one point of its output faces. For a symmetric or triangular domain, that means once per stored element |
+| K4 | **Reads stay inside their ports:** every port, state or intermediate read, at every point that reads it, is at an index inside its domain. For a bounded extent, that means inside its count: the check runs for every count from 0 to the bound, so a read is accepted only if it is guarded for each one |
+| K5 | **Every output is written exactly once:** for each out port, state and intermediate, every element it stores is written by exactly one point of its output faces, and no point writes an index outside it. For a bounded extent, that means the rows below its declared count. For a symmetric or triangular domain, it means once per stored element, and nothing outside the stored triangle |
 | K6 | **The dependences are acyclic:** some order of the space's points evaluates every point after every point it reads. No schedule is declared (design choice 5) |
 | K7 | **State and state roles:** a handler whose state role is `update` writes every state it reads through its output faces. A handler whose role is `read` writes none, and one whose role is `none` names none. This is the check of declared state against state roles that step 1 left out |
 | K8 | **Classification:** each read is classified as uniform, affine or non-affine, and so is each system: a SURE if every read is uniform, otherwise affine or non-affine. A classification is reported, not refused. A test holds each pattern's leaves to the class it states |
@@ -128,11 +130,12 @@ These are derived from a checked declaration, and each is checked against a clos
 
 ### The evaluator
 
-`workbench/evaluate.hpp` runs a declaration on the values of a firing's in ports, its state and its operator's parameters. It returns the out ports and the new state. It enumerates the points in an order, evaluates each equation in the system's element types, and records every variable in a dense store over the space. That makes it slow, but these are reference implementations of small domains.
+`workbench/evaluate.hpp` runs a declaration on the values of a firing's in ports, its time input for a time handler, its state and its operator's parameters. It returns the out ports and the new state. It enumerates the points in an order, evaluates each equation in the system's element types, and records every variable in a dense store over the space. That makes it slow, but these are reference implementations of small domains.
 
-- **The order** is lexicographic, or a random topological order of the dependence graph, from a seed. A read of a value not yet written is K3, reported at the point where it is made.
-- **It is an oracle of the declaration, not of the operator** (design choice 7). W11 compares it with the handler. W12 compares it with itself across orders: if the dependences are complete, every allowed order computes the same operations on the same values, so its results are bit-identical. A dependence the declaration leaves out lets some order read a value too early. K3 then reports that read, rather than a different result being computed.
-- **Every pattern's tests run it** on the inputs of every firing of a short run: the leaf's in-port values come from the stack's trace, and its state from a copy of the operator taken before the firing.
+- **The order** is a topological order of the dependence graph. The deterministic one takes, among the points whose reads are all written, the lexicographically least first, so a backward sweep (SSOR) runs backward. A random one takes any of them, from a seed. A read of a variable not yet written is K3, reported at the point where it is made.
+- **Writes in place:** an `inout` port and a state are one store, read and written in place, as a lowering would keep them. Their old values are what their input faces read until a point overwrites them.
+- **It is an oracle of the declaration, not of the operator** (design choice 7). W11 compares it with the handler. W12 compares it with itself across orders. The dependences come from the reads, so every order honors them, and each point computes the same operations on the same values. The one thing an order can change is a write in place made before another point reads the old value. That is an order the declaration leaves out, and it shows as results that differ between orders.
+- **Every pattern's tests run it** on the inputs of every firing of a short run. The trace records a firing's out ports after it runs, so it can't supply the operator's state before a firing, and the trace format is unchanged. Instead, the pattern's run by hand (W1), which calls each handler directly, takes a hook that is called before each handler. The hook receives the handler's in-port values (inputs, constants and windows included), its time, and a copy of its operator.
 
 ### Carried edges (C4)
 
@@ -159,7 +162,7 @@ Each pattern has a header in `workbench/patterns/`, the interface of `pattern.hp
   - `Linear` is a reduction along `j`, a SURE but for its affine reads of `W` and `x`, with `R·C` multiply-adds.
   - `BiasAdd`, `Tanh` and `Cast` are elementwise: their space is their data domain, and every read is at the point. The model's section 4 fuses such an operator onto a drain. K8 classifies it, so the lowering can find it.
 - **Kalman filter:** the first programs.
-  - `predict` is two systems: `x ← F·x` and `P ← F·P·Fᵀ + Q`, with `dt` from the time input. Its guard (no predict when `dt ≤ 0`) is a `select`.
+  - `predict` is two systems: `x ← F·x` and `P ← F·P·Fᵀ + Q`. `dt` comes from the time input and `t_last`, the time of the last predict, which the handler writes back. `t_last` is a member today, so the binding declares it as a third state beside `x` and `P`. The guard (no predict when `dt ≤ 0`) is a `select`.
   - `update` is a program over the fixes' bounded extent: one fix at a time, as the handler does, in Joseph form.
   - `prior` and `posterior` copy the state out, so their output faces write the out ports and nothing writes the state (K7).
   - Its counts are stated in closed form for a 4-state filter with one fix.
@@ -219,7 +222,7 @@ Each pattern has a header in `workbench/patterns/`, the interface of `pattern.hp
   - `QᵀQ = I` to 1e-12, and `R` upper triangular exactly;
   - `QR = A` to 1e-12;
   - the least-squares solution of a system with a known solution, to 1e-10;
-  - the count against `2mn² − (2/3)n³` in closed form.
+  - the count against the exact count of the Householder algorithm as written: a polynomial in `m` and `n`, stated with the pattern, whose leading terms are `2mn² − (2/3)n³`.
 
 Every new pattern runs in `f64`, with `f32` where its oracle says what it costs. The per-edge precision loop is step 5's.
 
@@ -243,7 +246,7 @@ Eleven PRs, each accepted on its own criteria.
    - `fl::cd::count`, the depth and the halo;
    - the text form.
 2. Toy declarations in `tests/sdk/`: a reduction, an elementwise map, a triangular space, a program of two systems, a state and a non-affine read. Each is checked, counted and printed.
-3. Compile-fail tests for K1 and K2, and a mutation test that breaks each of K3–K8 in a valid declaration and checks the id reported (W10).
+3. Compile-fail tests for K1 and K2, a mutation test that breaks each of K3–K7 in a valid declaration and checks the id reported, and K8's classification of each toy against the expected one (W10).
 4. `workbench/evaluate.hpp` and its tests on the toys (W11, W12).
 5. racing-drone's and scout-drone's `tools/compare_outputs.sh`, built against this branch, are byte-identical to their main's (W18).
 
