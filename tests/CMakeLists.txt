@@ -176,7 +176,9 @@ set(flow_compile_fail
     "w4_element|G4: every edge joins two ports of the same domain"
     "w6_shape|accumulate: a message whose domain has a shape isn't accumulated"
     "w7_capacity|G7: an accumulator holds at least one value"
-    "g4_window|G4: every edge joins two ports of the same domain")
+    "g4_window|G4: every edge joins two ports of the same domain"
+    "k1_compute|K1: a computational domain names its binding's ports and states"
+    "k2_compute|K2: a computational domain binds each parameter")
 foreach(entry IN LISTS flow_compile_fail)
     string(REPLACE "|" ";" entry "${entry}")
     list(GET entry 0 case)

@@ -42,6 +42,7 @@
 /// acyclic and its order a topological order of them, by construction (G5).
 
 #include <branes/anatomy/config/error.hpp>
+#include <branes/anatomy/flow/compute.hpp>
 #include <branes/anatomy/flow/domain.hpp>
 #include <branes/anatomy/flow/domains.hpp>
 #include <branes/anatomy/flow/graph.hpp>
@@ -198,10 +199,38 @@ concept binding = requires {
 } && is_signature_v<typename B::signature>;
 
 namespace detail {
+/// A handler that declares its computational domain (flow/compute.hpp).
+template <class H>
+concept has_compute = requires { H::compute; };
+
+/// K1 (k == 1) or K2 holds for handler H of B, if it declares a computational domain.
+template <class B, class H>
+[[nodiscard]] constexpr bool compute_holds(int k) noexcept {
+    if constexpr (has_compute<H>) {
+        const cd::table t = cd::table_of<B, H>();
+        return (k == 1 ? cd::k1(H::compute, t) : cd::k2(H::compute, t)).k == 0;
+    } else {
+        (void)k;
+        return true;
+    }
+}
+
+/// K1 or K2 holds for every handler of B that declares a computational domain.
+template <class B, class... H>
+[[nodiscard]] constexpr bool computes_hold(std::tuple<H...>*, int k) noexcept {
+    return (compute_holds<B, H>(k) && ...);
+}
+
 template <binding B>
 struct checked_binding {
     static_assert(handlers_fit<typename B::signature>(static_cast<typename B::handlers::types*>(nullptr)),
                   "G2: a handler's in ports are in or inout ports of its signature, and its out ports out or inout");
+    static_assert(computes_hold<B>(static_cast<typename B::handlers::types*>(nullptr), 1),
+                  "K1: a computational domain names its binding's ports and states, reads and writes only what "
+                  "its handler may, gives each read and write its target's rank, keeps one element type per "
+                  "operation, and keeps each index in its stage");
+    static_assert(computes_hold<B>(static_cast<typename B::handlers::types*>(nullptr), 2),
+                  "K2: a computational domain binds each parameter to an extent, a bound or a count its target has");
     using type = B;
 };
 
@@ -233,6 +262,27 @@ struct port_values<Sig, outs<N...>> {
 /// A binding's handler of that name.
 template <class B, fixed_string Name>
 using handler_t = typename detail::find_handler<B, Name>::type;
+
+namespace cd {
+/// K1–K8, the counts and the depth of the computational domain of handler H
+/// of registered operator Op (flow/compute.hpp).
+template <class Op, fixed_string H>
+[[nodiscard]] report check() {
+    using B = typename Op::binding;
+    using Hd = handler_t<B, H>;
+    static_assert(flow::detail::has_compute<Hd>, "cd::check: the handler declares no computational domain");
+    return analyze(Hd::compute, table_of<B, Hd>());
+}
+
+/// The computational domain of handler H of Op, as text.
+template <class Op, fixed_string H>
+[[nodiscard]] std::string text_of() {
+    using B = typename Op::binding;
+    using Hd = handler_t<B, H>;
+    static_assert(flow::detail::has_compute<Hd>, "cd::text_of: the handler declares no computational domain");
+    return text(Hd::compute, table_of<B, Hd>());
+}
+}  // namespace cd
 
 /// An operator, as the registry names it: its name, its C++ type, and its
 /// binding (its composite's, if it fills one).
