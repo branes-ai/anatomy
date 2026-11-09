@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <string>
 #include <system_error>
+#include <vector>
 
 namespace {
 
@@ -34,14 +35,16 @@ const wb::check* find(const wb::report& r, const std::string& name) {
 
 /// The i-th frame tick's outputs.
 dsp::frame_outputs& frame(std::vector<dsp::sample>& samples, std::size_t i) {
+    dsp::frame_outputs* found = nullptr;
     std::size_t n = 0;
     for (dsp::sample& s : samples) {
-        if (s.source == 1 && n++ == i) {
-            return s.frame.front();
+        if (s.source == 1 && !s.frame.empty() && n++ == i) {
+            found = &s.frame.front();
+            break;
         }
     }
-    FAIL("no frame " << i);
-    return samples.front().frame.front();
+    REQUIRE(found != nullptr);
+    return *found;
 }
 
 }  // namespace
