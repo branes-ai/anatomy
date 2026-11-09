@@ -695,6 +695,7 @@ template <class Op, fl::fixed_string H, class... In>
     {
         std::size_t k = 0;
         (detail::put(x.ports, std::string{Hd::in::names[k++]}, in), ...);
+        (void)k;  // unused for a handler with no in ports
     }
     detail::put_members<B>(x.states, x.params, op);
     const outputs o = evaluate(Hd::compute, cd::table_of<B, Hd>(), x, 0);
@@ -724,6 +725,7 @@ template <class Op, fl::fixed_string H, class... In>
             std::size_t k = 0;
             std::apply([&](const auto&... e) { (detail::put(f.handler, std::string{Hd::out::names[k++]}, e), ...); },
                        r);
+            (void)k;
         } else {
             detail::put(f.handler, std::string{Hd::out::names[0]}, r);
         }

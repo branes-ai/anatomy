@@ -482,6 +482,7 @@ public:
         o.rank = static_cast<std::uint8_t>(sizeof...(E));
         std::size_t k = 0;
         ((o.extent[k++] = to_ix(extents).n), ...);
+        (void)k;  // unused for a scalar local
         return {this, add_operand(o)};
     }
     /// A local declared earlier, by name.
@@ -1022,6 +1023,7 @@ struct extents_info<std::tuple<X...>> {
         std::array<std::int64_t, max_rank> a{};
         std::size_t k = 0;
         ((a[k++] = static_cast<std::int64_t>(X::size)), ...);
+        (void)k;  // unused for a scalar, which has no extents
         return a;
     }();
     static constexpr bool leading_bounded = [] {
