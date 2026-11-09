@@ -307,7 +307,7 @@ To be confirmed in this plan's PR.
 
 | Step | PR | State |
 |---|---|---|
-| C0: this plan | | open |
+| C0: this plan | [#99](https://github.com/branes-ai/anatomy/pull/99) | open |
 | C1: the computational domain and its checks | | |
 | C2: the MLP's and the Kalman filter's declarations | | |
 | C3: the DSP pipeline's declarations | | |
