@@ -119,4 +119,9 @@ The options considered:
 - **Bounded shapes and symbolic extents** are bound from configuration. Whether an optimizer may vary them (a 4-state filter or a 6-state one, a 256-point FFT or a 1024-point one, a 64 × 64 grid or a 1024 × 1024 one) or only the configuration may, is open. The patterns are where this is first decided.
 - **Whether an evaluation runs remote,** on hardware rather than on the host's CPU. `embodied-ai-architect` has SSH and Kubernetes back ends. The evaluation command's interface should not preclude them.
 
-**Current state:** proposed on 2026-11-05, accepted on 2026-11-07. Step 1 is planned ([plan](../plan/workbench/README.md), [anatomy#89](https://github.com/branes-ai/anatomy/issues/89)); no code has started.
+**Current state:** proposed on 2026-11-05, accepted on 2026-11-07. Step 1 is complete ([plan](../plan/workbench/README.md), [anatomy#89](https://github.com/branes-ai/anatomy/issues/89), [guide](../guides/the-workbench.md)), to be released in v0.12.0:
+
+- In the core: `flow::data<D>`, the value of a shaped or structured domain, and complex element types ([anatomy#91](https://github.com/branes-ai/anatomy/pull/91)). Also the `accumulate` rate rule, read as a `flow::window<M, N>` ([anatomy#93](https://github.com/branes-ai/anatomy/pull/93)). Without an `accumulate` edge, a graph's canonical form and hash are unchanged. racing-drone's and scout-drone's outputs, built against it, are byte-identical to their main's.
+- In the workbench (`workbench/`, not installed): the driver, its sources and codecs, `workbench_run`, and the MLP ([anatomy#94](https://github.com/branes-ai/anatomy/pull/94)). Also the MTL5 adapter and the Kalman filter ([anatomy#95](https://github.com/branes-ai/anatomy/pull/95)), and the DSP spectral pipeline ([anatomy#96](https://github.com/branes-ai/anatomy/pull/96)). Each pattern's stack equals its operators called by hand, bit for bit (W1). It meets its closed-form oracle (W2), and its traces are byte-identical run to run (W3).
+
+Optical flow, ResNet18 and a transformer, with the reusable subgraphs they need, are left to a step of their own (the plan's "Not in this plan"). Step 2 is next.

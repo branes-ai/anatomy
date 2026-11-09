@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 issue: branes-ai/anatomy#89
 ---
 # Plan: the workbench, and the MLP, Kalman and DSP patterns (ADR 0005, step 1)
@@ -249,7 +249,7 @@ Six PRs, each accepted on its own criteria. ADR 0005 was accepted with this plan
 
 ## Design choices
 
-To be confirmed with this plan's PR.
+Confirmed with this plan's PR ([#90](https://github.com/branes-ai/anatomy/pull/90)).
 
 1. **The workbench is a directory and a library of its own,** not part of `tests/`. Step 4's graph host and step 5's evaluation command will link it, and `workbench_run` already does. It isn't installed or exported, so ADR 0005's rule holds: no mission links a reference operator.
 2. **Two oracles per pattern, one exact and one mathematical.** The hand-wired run (W1) is bit-exact on the same compiler, so any difference is a fault in the graph's execution, as in the flow tests. The closed-form oracle (W2) is to a tolerance, and judges the operators. A failure says which of the two it is.
@@ -281,5 +281,5 @@ To be confirmed with this plan's PR.
 | B2: `accumulate` | [#93](https://github.com/branes-ai/anatomy/pull/93) | merged |
 | B3: the workbench and the MLP | [#94](https://github.com/branes-ai/anatomy/pull/94) | merged |
 | B4: the Kalman filter | [#95](https://github.com/branes-ai/anatomy/pull/95) | merged |
-| B5: the DSP spectral pipeline | [#96](https://github.com/branes-ai/anatomy/pull/96) | open |
-| B6: docs | | |
+| B5: the DSP spectral pipeline | [#96](https://github.com/branes-ai/anatomy/pull/96) | merged |
+| B6: docs | [#97](https://github.com/branes-ai/anatomy/pull/97) | open |
