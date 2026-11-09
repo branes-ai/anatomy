@@ -282,4 +282,4 @@ Confirmed with this plan's PR ([#90](https://github.com/branes-ai/anatomy/pull/9
 | B3: the workbench and the MLP | [#94](https://github.com/branes-ai/anatomy/pull/94) | merged |
 | B4: the Kalman filter | [#95](https://github.com/branes-ai/anatomy/pull/95) | merged |
 | B5: the DSP spectral pipeline | [#96](https://github.com/branes-ai/anatomy/pull/96) | merged |
-| B6: docs | [#97](https://github.com/branes-ai/anatomy/pull/97) | open |
+| B6: docs | [#97](https://github.com/branes-ai/anatomy/pull/97) | merged, v0.12.0 |
