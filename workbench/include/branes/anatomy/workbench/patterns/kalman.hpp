@@ -12,8 +12,8 @@
 ///   posterior  reads x and P, in the fixes region after update
 /// Two of them update its state, in two regions fired by two triggers at
 /// shared times; the clock goes first (the driver's declared order), so an
-/// update applies to the predicted state. The signature declares x and P as
-/// its state domains. Its arithmetic is MTL5's, through the adapter
+/// update applies to the predicted state. The signature declares x, P and
+/// t_last, the time of the last predict, as its state domains. Its arithmetic is MTL5's, through the adapter
 /// (workbench/mtl5.hpp): P is kept packed between firings, and a handler
 /// unpacks it, computes, and packs the result.
 ///
@@ -33,6 +33,7 @@
 ///   the f32 and f64 filters' posteriors agree to a relative 1e-4.
 
 #include <branes/anatomy/flow/builder.hpp>
+#include <branes/anatomy/flow/compute.hpp>
 #include <branes/anatomy/flow/data.hpp>
 #include <branes/anatomy/flow/domain.hpp>
 #include <branes/anatomy/flow/signature.hpp>
@@ -59,6 +60,7 @@
 namespace branes::anatomy::workbench::kalman {
 
 namespace fl = branes::anatomy::flow;
+namespace cd = branes::anatomy::flow::cd;
 
 template <class E>
 using StateD = fl::vector<E, fl::dim<4>>;
@@ -66,6 +68,7 @@ template <class E>
 using CovD = fl::matrix<E, fl::dim<4>, fl::dim<4>, fl::structure::symmetric>;
 template <class E>
 using FixesD = fl::matrix<E, fl::bounded<4>, fl::dim<2>>;
+using TimeD = fl::scalar<std::int64_t>;
 
 template <class E>
 using Vec4 = fl::data<StateD<E>>;
@@ -104,7 +107,7 @@ template <class E>
 struct Kalman {
     Vec4<E> x;
     Cov4<E> P;
-    std::int64_t t_last = 0;  ///< the last predict's time [ns]
+    fl::data<TimeD> t_last;  ///< the last predict's time [ns]
     E q{};
     E r{};
 
@@ -123,8 +126,8 @@ struct Kalman {
     }
 
     void predict(Timestamp t) {
-        const E dt = static_cast<E>(static_cast<double>(t.ns - t_last) * 1e-9);
-        t_last = t.ns;
+        const E dt = static_cast<E>(static_cast<double>(t.ns - t_last()) * 1e-9);
+        t_last() = t.ns;
         if (!(dt > E{0})) {
             return;
         }
@@ -221,33 +224,210 @@ struct Kalman {
     }
 };
 
+namespace declare {
+
+/// predict: one space (i, j, k) over 4 × 4 × 4. dt, Q's terms and F live at
+/// the points the regions give them; x ← F·x along k at j = 0, F·P along k,
+/// then (F·P)·Fᵀ along k, whose last face writes P's upper triangle with Q
+/// added. If dt <= 0, x and P keep their values; t_last always takes the time.
+template <class E>
+constexpr cd::system predict() {
+    constexpr cd::etype e = cd::etype_of<E>;
+    cd::system s;
+    const auto n = s.extent("x", 0);
+    const auto i = s.index("i", 0, n);
+    const auto j = s.index("j", 0, n);
+    const auto k = s.index("k", 0, n);
+    const auto x = s.state("x");
+    const auto P = s.state("P");
+    const auto q = s.param("q", e);
+    const auto at0 = [&] { return s.where(i == 0, j == 0, k == 0); };
+
+    // dt in E, from the time since the last predict, in f64 as the handler computes it.
+    const auto dt = s.var("dt", e);
+    s.eq(dt, s.cast(s.cast(s.time() - s.state("t_last")(), cd::etype::f64) * 1e-9, e), at0());
+    s.write(s.state("t_last").at(), s.time(), at0());
+    const auto d = [&] { return dt(0, 0, 0); };
+    const auto q11 = s.var("q11", e);
+    const auto q12 = s.var("q12", e);
+    const auto q22 = s.var("q22", e);
+    s.eq(q11, q() * d() * d() * d() / 3.0, at0());
+    s.eq(q12, q() * d() * d() / 2.0, at0());
+    s.eq(q22, q() * d(), at0());
+
+    // F = I, with dt at (0, 2) and (1, 3), at k = 0.
+    const auto F = s.var("F", e);
+    s.eq(F, s.literal(1, e), s.where(k == 0, i == j));
+    s.eq(F, d(), s.where(k == 0, j == i + 2));
+    s.eq(F, s.literal(0, e), s.where(k == 0, j < i));
+    s.eq(F, s.literal(0, e), s.where(k == 0, j == i + 1));
+    s.eq(F, s.literal(0, e), s.where(k == 0, j == i + 3));
+
+    // x ← F·x, at j = 0.
+    const auto fx = s.var("fx", e);
+    s.init(fx, s.literal(0, e), s.face(k == -1, j == 0));
+    s.eq(fx, fx(i, j, k - 1) + F(i, k, 0) * x(k), s.where(j == 0));
+    s.write(x.at(i), cd::select_le(d(), s.literal(0, e), x(i), fx(i, 0, n - 1)), s.where(j == 0, k == n - 1));
+
+    // F·P, then (F·P)·Fᵀ.
+    const auto fp = s.var("fp", e);
+    s.init(fp, s.literal(0, e), s.face(k == -1));
+    s.eq(fp, fp(i, j, k - 1) + F(i, k, 0) * P(k, j));
+    const auto fpf = s.var("fpf", e);
+    s.init(fpf, s.literal(0, e), s.face(k == -1));
+    s.eq(fpf, fpf(i, j, k - 1) + fp(i, k, n - 1) * F(j, k, 0));
+
+    // P ← F·P·Fᵀ + Q, its upper triangle, on the last face.
+    const auto last = n - 1;
+    const auto keep = [&](cd::val v) { return cd::select_le(d(), s.literal(0, e), P(i, j), v); };
+    s.write(P.at(i, j), keep(fpf(i, j, last) + q11(0, 0, 0)), s.where(k == last, i == j, i < 2));
+    s.write(P.at(i, j), keep(fpf(i, j, last) + q22(0, 0, 0)), s.where(k == last, i == j, i >= 2));
+    s.write(P.at(i, j), keep(fpf(i, j, last) + q12(0, 0, 0)), s.where(k == last, j == i + 2));
+    s.write(P.at(i, j), keep(fpf(i, j, last)), s.where(k == last, j == i + 1));
+    s.write(P.at(i, j), keep(fpf(i, j, last)), s.where(k == last, j == i + 3));
+    return s;
+}
+
+/// update: one fix at a time, f over the fixes' count, in Joseph form, in
+/// one space (f, i, j, k) over count × 4 × 4 × 4. Each step of the handler
+/// is a variable on the region its result occupies; a product is a
+/// reduction along k. The state before fix f is pc (P) and xc (x), and after
+/// it pn and xn; the last fix's are written to the state.
+template <class E>
+constexpr cd::system update() {
+    constexpr cd::etype e = cd::etype_of<E>;
+    cd::system s;
+    const auto n = s.extent("x", 0);
+    const auto m = s.count("fixes");
+    const auto f = s.index("f", 0, m);
+    const auto i = s.index("i", 0, n);
+    const auto j = s.index("j", 0, n);
+    const auto k = s.index("k", 0, n);
+    const auto r = s.param("r", e);
+    const auto z = s.in("fixes");
+    const auto P = s.state("P");
+    const auto x = s.state("x");
+    const auto zero = [&] { return s.literal(0, e); };
+    const auto one = [&] { return s.literal(1, e); };
+
+    // The state before fix f.
+    const auto pc = s.var("pc", e);
+    const auto pn = s.var("pn", e);
+    s.eq(pc, P(i, j), s.where(k == 0, f == 0));
+    s.eq(pc, pn(f - 1, i, j, 0), s.where(k == 0, f >= 1, i <= j));
+    s.eq(pc, pn(f - 1, j, i, 0), s.where(k == 0, f >= 1, j < i));
+    const auto xc = s.var("xc", e);
+    const auto xn = s.var("xn", e);
+    s.eq(xc, x(i), s.where(j == 0, k == 0, f == 0));
+    s.eq(xc, xn(f - 1, i, 0, 0), s.where(j == 0, k == 0, f >= 1));
+
+    // S = H·P·Hᵀ + R, and its inverse.
+    const auto at0 = [&] { return s.where(i == 0, j == 0, k == 0); };
+    const auto s00 = s.var("s00", e);
+    const auto s01 = s.var("s01", e);
+    const auto s11 = s.var("s11", e);
+    const auto det = s.var("det", e);
+    s.eq(s00, pc(f, 0, 0, 0) + r(), at0());
+    s.eq(s01, pc(f, 0, 1, 0), at0());
+    s.eq(s11, pc(f, 1, 1, 0) + r(), at0());
+    s.eq(det, s00(f, 0, 0, 0) * s11(f, 0, 0, 0) - s01(f, 0, 0, 0) * s01(f, 0, 0, 0), at0());
+    const auto si = s.var("si", e);
+    s.eq(si, s11(f, 0, 0, 0) / det(f, 0, 0, 0), s.where(k == 0, i == 0, j == 0));
+    s.eq(si, -s01(f, 0, 0, 0) / det(f, 0, 0, 0), s.where(k == 0, i == 0, j == 1));
+    s.eq(si, -s01(f, 0, 0, 0) / det(f, 0, 0, 0), s.where(k == 0, i == 1, j == 0));
+    s.eq(si, s00(f, 0, 0, 0) / det(f, 0, 0, 0), s.where(k == 0, i == 1, j == 1));
+
+    // K = P·Hᵀ·S⁻¹, a 4 × 2 product along k < 2; K(i, j) is gain(f, i, j, 1).
+    const auto gain = s.var("gain", e);
+    s.init(gain, zero(), s.face(k == -1, j < 2));
+    s.eq(gain, gain(f, i, j, k - 1) + pc(f, i, k, 0) * si(f, k, j, 0), s.where(j < 2, k < 2));
+
+    // x += K·(z − H·x).
+    const auto nu = s.var("nu", e);
+    s.eq(nu, z(f, i) - xc(f, i, 0, 0), s.where(i < 2, j == 0, k == 0));
+    const auto dx = s.var("dx", e);
+    s.init(dx, zero(), s.face(k == -1, j == 0));
+    s.eq(dx, dx(f, i, j, k - 1) + gain(f, i, k, 1) * nu(f, k, 0, 0), s.where(j == 0, k < 2));
+    s.eq(xn, xc(f, i, 0, 0) + dx(f, i, 0, 1), s.where(j == 0, k == 0));
+
+    // A = I − K·H, with H = [I₂ 0]: K·H along k < 2.
+    const auto kh = s.var("kh", e);
+    s.init(kh, zero(), s.face(k == -1));
+    s.eq(kh, kh(f, i, j, k - 1) + gain(f, i, k, 1) * one(), s.where(k < 2, k == j));
+    s.eq(kh, kh(f, i, j, k - 1) + gain(f, i, k, 1) * zero(), s.where(k < 2, k < j));
+    s.eq(kh, kh(f, i, j, k - 1) + gain(f, i, k, 1) * zero(), s.where(k < 2, j < k));
+    const auto a = s.var("a", e);
+    s.eq(a, one() - kh(f, i, j, 1), s.where(k == 0, i == j));
+    s.eq(a, zero() - kh(f, i, j, 1), s.where(k == 0, j < i));
+    s.eq(a, zero() - kh(f, i, j, 1), s.where(k == 0, i < j));
+
+    // P = A·P·Aᵀ + K·R·Kᵀ: A·P, then (A·P)·Aᵀ, and K·Kᵀ along k < 2.
+    const auto ap = s.var("ap", e);
+    s.init(ap, zero(), s.face(k == -1));
+    s.eq(ap, ap(f, i, j, k - 1) + a(f, i, k, 0) * pc(f, k, j, 0));
+    const auto apa = s.var("apa", e);
+    s.init(apa, zero(), s.face(k == -1));
+    s.eq(apa, apa(f, i, j, k - 1) + ap(f, i, k, n - 1) * a(f, j, k, 0));
+    const auto kk = s.var("kk", e);
+    s.init(kk, zero(), s.face(k == -1));
+    s.eq(kk, kk(f, i, j, k - 1) + gain(f, i, k, 1) * gain(f, j, k, 1), s.where(k < 2));
+    s.eq(pn, apa(f, i, j, n - 1) + r() * kk(f, i, j, 1), s.where(k == 0, i <= j));
+
+    // The last fix's state.
+    s.write(P.at(i, j), pn(f, i, j, 0), s.where(f == m - 1, k == 0, i <= j));
+    s.write(x.at(i), xn(f, i, 0, 0), s.where(f == m - 1, j == 0, k == 0));
+    return s;
+}
+
+/// prior and posterior: x and P, copied out.
+constexpr cd::system read_out() {
+    cd::system s;
+    const auto n = s.extent("x", 0);
+    const auto i = s.index("i", 0, n);
+    const auto j = s.index("j", 0, n);
+    s.write(s.out("mean").at(i), s.state("x")(i), s.where(j == 0));
+    s.write(s.out("cov").at(i, j), s.state("P")(i, j), s.where(i <= j));
+    return s;
+}
+
+}  // namespace declare
+
 template <class E>
 struct KalmanBinding {
-    using signature = fl::signature<fl::ports<fl::port<"fixes", Fixes<E>, fl::direction::in>,
-                                              fl::port<"mean", Vec4<E>, fl::direction::out>,
-                                              fl::port<"cov", Cov4<E>, fl::direction::out>>,
-                                    fl::states<fl::state<"x", StateD<E>>, fl::state<"P", CovD<E>>>>;
+    using signature =
+        fl::signature<fl::ports<fl::port<"fixes", Fixes<E>, fl::direction::in>,
+                                fl::port<"mean", Vec4<E>, fl::direction::out>,
+                                fl::port<"cov", Cov4<E>, fl::direction::out>>,
+                      fl::states<fl::state<"x", StateD<E>>, fl::state<"P", CovD<E>>, fl::state<"t_last", TimeD>>>;
     struct predict : fl::handler<"predict", fl::ins<>, fl::outs<>, fl::state_role::update, fl::takes_time::yes> {
+        static constexpr cd::system compute = declare::predict<E>();
         static void call(Kalman<E>& op, Timestamp t) {
             op.predict(t);
         }
     };
     struct update : fl::handler<"update", fl::ins<"fixes">, fl::outs<>, fl::state_role::update> {
+        static constexpr cd::system compute = declare::update<E>();
         static void call(Kalman<E>& op, const Fixes<E>& z) {
             op.update(z);
         }
     };
     struct prior : fl::handler<"prior", fl::ins<>, fl::outs<"mean", "cov">, fl::state_role::read> {
+        static constexpr cd::system compute = declare::read_out();
         static std::tuple<Vec4<E>, Cov4<E>> call(const Kalman<E>& op) {
             return {op.x, op.P};
         }
     };
     struct posterior : fl::handler<"posterior", fl::ins<>, fl::outs<"mean", "cov">, fl::state_role::read> {
+        static constexpr cd::system compute = declare::read_out();
         static std::tuple<Vec4<E>, Cov4<E>> call(const Kalman<E>& op) {
             return {op.x, op.P};
         }
     };
     using handlers = fl::handlers<predict, update, prior, posterior>;
+    using cd_state = cd::members<cd::member<"x", &Kalman<E>::x>,
+                                 cd::member<"P", &Kalman<E>::P>,
+                                 cd::member<"t_last", &Kalman<E>::t_last>>;
+    using cd_params = cd::members<cd::member<"q", &Kalman<E>::q>, cd::member<"r", &Kalman<E>::r>>;
 };
 
 /// The fixes, in another element type; the count is kept.
@@ -269,6 +449,15 @@ struct CastFixesBinding {
     using signature = fl::signature<
         fl::ports<fl::port<"x", Fixes<From>, fl::direction::in>, fl::port<"y", Fixes<To>, fl::direction::out>>>;
     struct apply : fl::handler<"apply", fl::ins<"x">, fl::outs<"y">> {
+        static constexpr cd::system compute = [] {
+            cd::system s;
+            const auto m = s.count("x");
+            const auto k = s.index("k", 0, m);
+            const auto c = s.index("c", 0, s.extent("x", 1));
+            s.write(s.out("y").at(k, c), s.cast(s.in("x")(k, c), cd::etype_of<To>));
+            s.set_count(s.out("y"), m);
+            return s;
+        }();
         static Fixes<To> call(const CastFixes<From, To>&, const Fixes<From>& z) {
             return CastFixes<From, To>::apply(z);
         }
@@ -414,7 +603,8 @@ struct sample {
 
 /// The operators called by hand on the same stream, in the graph's order:
 /// the clock and the fixes merged as the driver merges them.
-[[nodiscard]] inline std::vector<sample> hand_run(const config& c, std::size_t inputs) {
+template <class Hook = no_hook>
+[[nodiscard]] std::vector<sample> hand_run(const config& c, std::size_t inputs, Hook&& hook = {}) {
     const context ctx{c};
     auto kf = *Kalman<double>::from_context(ctx);
     auto kf32 = *Kalman<float>::from_context(ctx);
@@ -429,19 +619,29 @@ struct sample {
         const std::int64_t tc = static_cast<std::int64_t>(ticks) * c.clock_period_ns;
         const std::int64_t tf = static_cast<std::int64_t>(fixes) * c.fix_period_ns;
         if (tc <= tf) {  // the clock first, at a shared time
+            hook.template before<Kalman64, "predict">(kf, Timestamp{tc});
             B::predict::call(kf, Timestamp{tc});
+            hook.template before<Kalman64, "prior">(kf, Timestamp{tc});
             std::tie(s.prior_mean, s.prior_cov) = B::prior::call(kf);
+            hook.template before<Kalman32, "predict">(kf32, Timestamp{tc});
             B32::predict::call(kf32, Timestamp{tc});
+            hook.template before<Kalman32, "prior">(kf32, Timestamp{tc});
             (void)B32::prior::call(kf32);
             s.source = 0;
             s.t = Timestamp{tc};
             ++ticks;
         } else {
             const Fixes<double> z = fixes_of(c, truth, fixes);
+            const Timestamp t{tf};
+            hook.template before<Kalman64, "update">(kf, t, z);
             B::update::call(kf, z);
+            hook.template before<Kalman64, "posterior">(kf, t);
             std::tie(s.posterior_mean, s.posterior_cov) = B::posterior::call(kf);
+            hook.template before<CastFixes64, "apply">({}, t, z);
             const Fixes<float> z32 = CastFixesBinding<double, float>::apply::call({}, z);
+            hook.template before<Kalman32, "update">(kf32, t, z32);
             B32::update::call(kf32, z32);
+            hook.template before<Kalman32, "posterior">(kf32, t);
             std::tie(s.posterior_mean_f32, s.posterior_cov_f32) = B32::posterior::call(kf32);
             s.source = 1;
             s.t = Timestamp{tf};
@@ -574,6 +774,15 @@ struct pattern {
     using context = kalman::context;
     using ports = kalman::ports;
     using sample = kalman::sample;
+    using leaves = workbench::leaves<leaf<Kalman64, "predict">,
+                                     leaf<Kalman64, "update">,
+                                     leaf<Kalman64, "prior">,
+                                     leaf<Kalman64, "posterior">,
+                                     leaf<Kalman32, "predict">,
+                                     leaf<Kalman32, "update">,
+                                     leaf<Kalman32, "prior">,
+                                     leaf<Kalman32, "posterior">,
+                                     leaf<CastFixes64, "apply">>;
 
     template <class G>
     [[nodiscard]] static ports graph(G& g, const config& c) {

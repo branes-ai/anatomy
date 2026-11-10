@@ -1,7 +1,8 @@
 # workbench_run's exit codes (workbench/apps/workbench_run/): 0 when every
 # check of the oracle passes, 1 when one fails, 2 for a usage error; and the
 # files it writes when asked: a trace that trace_compare reads, the graph's
-# canonical form and its flowchart.
+# canonical form and its flowchart; and its handlers' computational domains,
+# checked (--check) and written as text (--compute).
 #
 # Inputs: WORKBENCH_RUN, TRACE_COMPARE (executables), WORK_DIR.
 
@@ -36,6 +37,16 @@ expect(2 "--inputs takes a positive integer" mlp --inputs 0)
 expect(2 "--seed takes an unsigned integer" mlp --seed x)
 expect(2 "option --verbose is not accepted here" mlp --verbose x)
 expect(2 "cannot write" mlp --canonical ${WORK_DIR}/none/g.txt)
+expect(0 "mlp: 6 declarations, all passed" mlp --check)
+expect(0 "PASS  Linear_f32_32x16.apply       uniform, depth 18, 512 mul, 512 add" mlp --check)
+expect(0 "kalman: 9 declarations, all passed" kalman --check)
+expect(0 "dsp: no handler declares a computational domain" dsp --check)
+expect(0 "mlp: 3 checks, all passed" mlp --inputs 5 --compute ${WORK_DIR}/cd.txt)
+expect(2 "cannot write" mlp --compute ${WORK_DIR}/none/cd.txt)
+expect(0 "kalman: 9 declarations, all passed" kalman --check --compute ${WORK_DIR}/kalman_cd.txt)
+if(NOT EXISTS ${WORK_DIR}/kalman_cd.txt)
+    message(FATAL_ERROR "--check --compute wrote no kalman_cd.txt")
+endif()
 
 # Two runs of one seed: their traces are equal, record by record.
 execute_process(COMMAND ${TRACE_COMPARE} --a ${a} --b ${b} RESULT_VARIABLE rc OUTPUT_VARIABLE out)
@@ -49,5 +60,9 @@ endif()
 file(READ ${WORK_DIR}/g.mmd chart)
 if(NOT chart MATCHES "flowchart LR")
     message(FATAL_ERROR "the flowchart isn't one:\n${chart}")
+endif()
+file(READ ${WORK_DIR}/cd.txt declarations)
+if(NOT declarations MATCHES "# Linear_f64_8x32.apply\nparam w\\[0\\] = 8\nparam w\\[1\\] = 32\n")
+    message(FATAL_ERROR "--compute wrote no Linear_f64_8x32 with its extents bound:\n${declarations}")
 endif()
 message(STATUS "workbench_run: passed")

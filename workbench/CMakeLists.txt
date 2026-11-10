@@ -13,6 +13,13 @@ target_include_directories(branes_anatomy_workbench INTERFACE ${CMAKE_CURRENT_SO
 # MTL5 is the target reflex's fetch defines, at reflex's pin; anatomy fetches none
 # of its own, and the SDK doesn't link it (docs/plan/workbench, design choice 7).
 target_link_libraries(branes_anatomy_workbench INTERFACE branes::anatomy MTL5::mtl5)
+# No contraction of a·b + c into a fused multiply-add: a computational
+# domain's evaluator rounds each operation, so a handler must too for the two
+# to agree exactly (workbench/evaluate.hpp; docs/plan/computational-domain,
+# W11). MSVC's default /fp:precise doesn't contract.
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(branes_anatomy_workbench INTERFACE -ffp-contract=off)
+endif()
 
 # The target is anatomy_workbench_run, so it can't clash with a mission's, and the binary workbench_run.
 add_executable(anatomy_workbench_run apps/workbench_run/main.cpp)

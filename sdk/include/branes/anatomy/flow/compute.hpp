@@ -148,16 +148,16 @@ inline constexpr etype etype_of = detail::etype_of_impl<E>::value;
 // ── Capacities ──────────────────────────────────────────────────────
 
 inline constexpr std::size_t max_name = 24;
-inline constexpr std::size_t max_nodes = 512;
-inline constexpr std::size_t max_args = 512;
-inline constexpr std::size_t max_constraints = 128;
+inline constexpr std::size_t max_nodes = 1024;
+inline constexpr std::size_t max_args = 1024;
+inline constexpr std::size_t max_constraints = 384;
 inline constexpr std::size_t max_indices = 24;
 inline constexpr std::size_t max_params = 24;
-inline constexpr std::size_t max_operands = 32;
-inline constexpr std::size_t max_defs = 64;
+inline constexpr std::size_t max_operands = 48;
+inline constexpr std::size_t max_defs = 96;
 inline constexpr std::size_t max_counts = 8;
 inline constexpr std::size_t max_stages = 8;
-inline constexpr std::size_t max_region = 8;
+inline constexpr std::size_t max_region = 6;
 inline constexpr std::size_t max_rank = 6;
 inline constexpr std::size_t max_ports = 24;
 

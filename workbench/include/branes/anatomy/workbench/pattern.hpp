@@ -15,7 +15,12 @@
 ///                                   what the oracle reads, collected after each input
 ///   P::oracle(config, samples)      its report (W2)
 ///   P::codecs()                     the trace codecs of its edges' messages
-/// and its hand-wired run (W1), which its tests compare with the stack.
+///   P::leaves                       its handlers that declare a computational
+///                                   domain (flow/compute.hpp), as leaves<leaf<Op, "h">...>
+/// and its hand-wired run (W1), which its tests compare with the stack. The
+/// run by hand takes a hook, which it calls before each handler with the
+/// operator and the handler's values (docs/plan/computational-domain, W11):
+///   hook.template before<Op, "h">(op, time, in...)
 
 #include <branes/anatomy/config/error.hpp>
 #include <branes/anatomy/flow/builder.hpp>
@@ -31,10 +36,36 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 namespace branes::anatomy::workbench {
+
+/// A handler of a registered operator, which declares its computational domain.
+template <class Op, flow::fixed_string H>
+struct leaf {
+    using op = Op;
+    static constexpr flow::fixed_string handler = H;
+};
+
+template <class... L>
+struct leaves {
+    using types = std::tuple<L...>;
+};
+
+/// Calls f.template operator()<Op, H>() for each leaf of L.
+template <class L, class F>
+void for_each_leaf(F&& f) {
+    std::apply([&](auto... l) { (f.template operator()<typename decltype(l)::op, decltype(l)::handler>(), ...); },
+               typename L::types{});
+}
+
+/// The run by hand's hook, when nothing needs to see the handlers' values.
+struct no_hook {
+    template <class Op, flow::fixed_string H, class... In>
+    void before(const typename Op::type&, Timestamp, const In&...) const noexcept {}
+};
 
 /// One check of an oracle: its value, against its tolerance.
 struct check {

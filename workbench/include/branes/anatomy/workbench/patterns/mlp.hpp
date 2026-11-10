@@ -22,6 +22,7 @@
 /// 32 tanh and 32 casts.
 
 #include <branes/anatomy/flow/builder.hpp>
+#include <branes/anatomy/flow/compute.hpp>
 #include <branes/anatomy/flow/data.hpp>
 #include <branes/anatomy/flow/domain.hpp>
 #include <branes/anatomy/flow/trace.hpp>
@@ -40,6 +41,7 @@
 namespace branes::anatomy::workbench::mlp {
 
 namespace fl = branes::anatomy::flow;
+namespace cd = branes::anatomy::flow::cd;
 
 template <class E, std::size_t N>
 using vec = fl::data<fl::vector<E, fl::dim<N>>>;
@@ -118,6 +120,20 @@ struct LinearBinding {
                                               fl::port<"x", vec<E, C>, fl::direction::in>,
                                               fl::port<"y", vec<E, R>, fl::direction::out>>>;
     struct apply : fl::handler<"apply", fl::ins<"w", "x">, fl::outs<"y">> {
+        /// A reduction along j, in E, in column order: R·C multiply-adds.
+        static constexpr cd::system compute = [] {
+            constexpr cd::etype e = cd::etype_of<E>;
+            cd::system s;
+            const auto rows = s.extent("w", 0);
+            const auto cols = s.extent("w", 1);
+            const auto i = s.index("i", 0, rows);
+            const auto j = s.index("j", 0, cols);
+            const auto acc = s.var("acc", e);
+            s.init(acc, s.literal(0, e), s.face(j == -1));
+            s.eq(acc, acc(i, j - 1) + s.in("w")(i, j) * s.in("x")(j));
+            s.write(s.out("y").at(i), acc(i, j), s.where(j == cols - 1));
+            return s;
+        }();
         static vec<E, R> call(const Linear<E, R, C>&, const mat<E, R, C>& w, const vec<E, C>& x) {
             return Linear<E, R, C>::apply(w, x);
         }
@@ -131,6 +147,12 @@ struct BiasAddBinding {
                                               fl::port<"b", vec<E, N>, fl::direction::in>,
                                               fl::port<"y", vec<E, N>, fl::direction::out>>>;
     struct apply : fl::handler<"apply", fl::ins<"x", "b">, fl::outs<"y">> {
+        static constexpr cd::system compute = [] {
+            cd::system s;
+            const auto i = s.index("i", 0, s.extent("x", 0));
+            s.write(s.out("y").at(i), s.in("x")(i) + s.in("b")(i));
+            return s;
+        }();
         static vec<E, N> call(const BiasAdd<E, N>&, const vec<E, N>& x, const vec<E, N>& b) {
             return BiasAdd<E, N>::apply(x, b);
         }
@@ -143,6 +165,12 @@ struct TanhBinding {
     using signature = fl::signature<
         fl::ports<fl::port<"x", vec<E, N>, fl::direction::in>, fl::port<"y", vec<E, N>, fl::direction::out>>>;
     struct apply : fl::handler<"apply", fl::ins<"x">, fl::outs<"y">> {
+        static constexpr cd::system compute = [] {
+            cd::system s;
+            const auto i = s.index("i", 0, s.extent("x", 0));
+            s.write(s.out("y").at(i), cd::tanh(s.in("x")(i)));
+            return s;
+        }();
         static vec<E, N> call(const Tanh<E, N>&, const vec<E, N>& x) {
             return Tanh<E, N>::apply(x);
         }
@@ -155,6 +183,12 @@ struct CastBinding {
     using signature = fl::signature<
         fl::ports<fl::port<"x", vec<From, N>, fl::direction::in>, fl::port<"y", vec<To, N>, fl::direction::out>>>;
     struct apply : fl::handler<"apply", fl::ins<"x">, fl::outs<"y">> {
+        static constexpr cd::system compute = [] {
+            cd::system s;
+            const auto i = s.index("i", 0, s.extent("x", 0));
+            s.write(s.out("y").at(i), s.cast(s.in("x")(i), cd::etype_of<To>));
+            return s;
+        }();
         static vec<To, N> call(const Cast<From, To, N>&, const vec<From, N>& x) {
             return Cast<From, To, N>::apply(x);
         }
@@ -264,13 +298,22 @@ struct sample {
     Y y;
 };
 
-/// The operators called by hand, in the graph's order, on its constants.
-[[nodiscard]] inline sample hand_run(const weights& w, const X& x) {
+/// The operators called by hand, in the graph's order, on its constants. The
+/// hook sees each handler's values before it runs (pattern.hpp).
+template <class Hook = no_hook>
+[[nodiscard]] sample hand_run(const weights& w, const X& x, Hook&& hook = {}) {
+    const Timestamp t{};
+    hook.template before<Linear1, "apply">({}, t, w.w1, x);
     const auto h1 = LinearBinding<float, kHidden, kIn>::apply::call({}, w.w1, x);
+    hook.template before<BiasAdd1, "apply">({}, t, h1, w.b1);
     const auto a1 = BiasAddBinding<float, kHidden>::apply::call({}, h1, w.b1);
+    hook.template before<Tanh1, "apply">({}, t, a1);
     const auto t1 = TanhBinding<float, kHidden>::apply::call({}, a1);
+    hook.template before<Cast1, "apply">({}, t, t1);
     const auto c1 = CastBinding<float, double, kHidden>::apply::call({}, t1);
+    hook.template before<Linear2, "apply">({}, t, w.w2, c1);
     const auto h2 = LinearBinding<double, kOut, kHidden>::apply::call({}, w.w2, c1);
+    hook.template before<BiasAdd2, "apply">({}, t, h2, w.b2);
     return sample{t1, BiasAddBinding<double, kOut>::apply::call({}, h2, w.b2)};
 }
 
@@ -307,6 +350,12 @@ struct pattern {
     using context = mlp::context;
     using ports = mlp::ports;
     using sample = mlp::sample;
+    using leaves = workbench::leaves<leaf<Linear1, "apply">,
+                                     leaf<BiasAdd1, "apply">,
+                                     leaf<Tanh1, "apply">,
+                                     leaf<Cast1, "apply">,
+                                     leaf<Linear2, "apply">,
+                                     leaf<BiasAdd2, "apply">>;
 
     template <class G>
     [[nodiscard]] static ports graph(G& g, const config& c) {

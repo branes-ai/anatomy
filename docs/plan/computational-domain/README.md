@@ -313,8 +313,8 @@ To be confirmed in this plan's PR.
 | Step | PR | State |
 |---|---|---|
 | C0: this plan | [#99](https://github.com/branes-ai/anatomy/pull/99) | merged |
-| C1: the computational domain and its checks | [#100](https://github.com/branes-ai/anatomy/pull/100) | open |
-| C2: the MLP's and the Kalman filter's declarations | | |
+| C1: the computational domain and its checks | [#100](https://github.com/branes-ai/anatomy/pull/100) | merged |
+| C2: the MLP's and the Kalman filter's declarations | [#102](https://github.com/branes-ai/anatomy/pull/102) | open |
 | C3: the DSP pipeline's declarations | | |
 | C4: carried edges and PID | | |
 | C5: the attitude filter | | |

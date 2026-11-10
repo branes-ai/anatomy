@@ -3,6 +3,12 @@
 //
 //   workbench_run <mlp|kalman|dsp> [--inputs N] [--seed S] [--trace run.brtrace]
 //                 [--mermaid g.mmd] [--canonical g.txt] [--tolerance-scale K]
+//                 [--check] [--compute cd.txt]
+//
+// --compute writes each computational domain its handlers declare
+// (flow/compute.hpp) as text. --check then checks them (K1–K8), one line
+// each, instead of running the pattern, and exits 1 if one fails; without
+// it, the pattern runs (docs/plan/computational-domain, C2).
 //
 // Exits 0 if every check passes, 1 if one fails, and 2 on a usage error or a
 // file it can't write, as trace_compare does. --tolerance-scale multiplies
@@ -12,6 +18,8 @@
 // the Kalman filter's oracle needs 2000 updates, and the DSP pipeline's 32
 // frames are 8224 inputs.
 
+#include <branes/anatomy/flow/builder.hpp>
+#include <branes/anatomy/flow/compute.hpp>
 #include <branes/anatomy/flow/graph.hpp>
 #include <branes/anatomy/harness/args.hpp>
 #include <branes/anatomy/workbench/pattern.hpp>
@@ -41,7 +49,7 @@ int usage(const std::string& message) {
 
 constexpr const char* kUsage =
     "usage: workbench_run <mlp|kalman|dsp> [--inputs N] [--seed S] [--trace run.brtrace] [--mermaid g.mmd] "
-    "[--canonical g.txt] [--tolerance-scale K]";
+    "[--canonical g.txt] [--tolerance-scale K] [--check] [--compute cd.txt]";
 
 template <class T>
 std::optional<T> number(const std::string& s) {
@@ -60,7 +68,81 @@ bool write_file(const std::filesystem::path& path, const std::string& text) {
 }
 
 template <class P>
+concept declares = requires { typename P::leaves; };
+
+/// The pattern's declared handlers, checked: one line each, PASS or FAIL.
+template <class P>
+int check_declarations() {
+    if constexpr (!declares<P>) {
+        std::printf("%s: no handler declares a computational domain\n", std::string(P::name).c_str());
+        return 0;
+    } else {
+        std::string lines;
+        std::size_t total = 0;
+        std::size_t failed = 0;
+        wb::for_each_leaf<typename P::leaves>([&]<class Op, an::flow::fixed_string H>() {
+            const an::flow::cd::report r = an::flow::cd::check<Op, H>();
+            ++total;
+            const std::string who = std::string(Op::name) + "." + std::string(H.view());
+            if (!r.ok()) {
+                ++failed;
+                lines += "  FAIL  " + who + "\n";
+                for (const auto& p : r.problems) {
+                    lines += "        " + p.id + ": " + p.what + "\n";
+                }
+                return;
+            }
+            std::string cls;
+            for (const auto st : r.stages) {
+                cls += (cls.empty() ? "" : "+") + std::string(an::flow::cd::to_string(st));
+            }
+            std::string ops;
+            for (const an::flow::cd::op o :
+                 {an::flow::cd::op::mul, an::flow::cd::op::add, an::flow::cd::op::sub, an::flow::cd::op::div}) {
+                if (const auto n = r.count(o)) {
+                    ops += ", " + std::to_string(n) + " " + std::string(an::flow::cd::to_string(o));
+                }
+            }
+            char line[256];
+            std::snprintf(line,
+                          sizeof line,
+                          "  PASS  %-28s %s, depth %llu%s\n",
+                          who.c_str(),
+                          cls.c_str(),
+                          static_cast<unsigned long long>(r.depth),
+                          ops.c_str());
+            lines += line;
+        });
+        std::printf("%s: %zu declarations, %s\n%s",
+                    std::string(P::name).c_str(),
+                    total,
+                    failed ? "some failed" : "all passed",
+                    lines.c_str());
+        return failed ? 1 : 0;
+    }
+}
+
+/// Each declared handler's computational domain, as text.
+template <class P>
+std::string declarations_text() {
+    std::string out;
+    if constexpr (declares<P>) {
+        wb::for_each_leaf<typename P::leaves>([&]<class Op, an::flow::fixed_string H>() {
+            out += "# " + std::string(Op::name) + "." + std::string(H.view()) + "\n";
+            out += an::flow::cd::text_of<Op, H>() + "\n";
+        });
+    }
+    return out;
+}
+
+template <class P>
 int run(typename P::config cfg, const an::harness::Args& args, std::optional<std::size_t> inputs, double scale) {
+    if (const auto file = args.value("compute"); file && !write_file(*file, declarations_text<P>())) {
+        return usage("cannot write " + *file);
+    }
+    if (args.has("check")) {
+        return check_declarations<P>();
+    }
     if (const auto mmd = args.value("mermaid"), txt = args.value("canonical"); mmd || txt) {
         const auto g = wb::describe<P>(cfg);
         if (!g) {
@@ -94,11 +176,12 @@ int main(int argc, char** argv) {
         return usage(kUsage);
     }
     const std::string pattern = argv[1];
-    auto args = an::harness::Args::parse(argc - 1, argv + 1, {});
+    auto args = an::harness::Args::parse(argc - 1, argv + 1, {"check"});
     if (!args) {
         return usage(args.error());
     }
-    if (auto bad = args->only({"inputs", "seed", "trace", "mermaid", "canonical", "tolerance-scale"})) {
+    if (auto bad =
+            args->only({"inputs", "seed", "trace", "mermaid", "canonical", "tolerance-scale", "check", "compute"})) {
         return usage(*bad);
     }
     std::optional<std::size_t> inputs;
