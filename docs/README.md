@@ -4,7 +4,7 @@ These documents are published at <https://branes-ai.github.io/anatomy/>. The sit
 
 | Folder | Contents |
 |---|---|
-| [getting-started/](getting-started/introduction.md) | [Introduction](getting-started/introduction.md), [build & test](getting-started/build-and-test.md), [repository layout](getting-started/repository-layout.md) |
+| [getting-started/](getting-started/introduction.md) | [Introduction](getting-started/introduction.md), [build & test](getting-started/build-and-test.md), [repository layout](getting-started/repository-layout.md), [a walkthrough in Visual Studio](getting-started/visual-studio-walkthrough.md) |
 | [arch/](arch/domain-flow-model.md) | Architecture: [the domain flow computational model](arch/domain-flow-model.md) |
 | [guides/](guides/baseline-file.md) | Guides: [the baseline file](guides/baseline-file.md), [designing a baseline](guides/designing-a-baseline.md), [reading a graph](guides/reading-a-graph.md), [the workbench](guides/the-workbench.md) |
 | [plan/](plan/move-from-racing-drone/README.md) | Per-issue plans, each with its issues and PRs: [the move from racing-drone](plan/move-from-racing-drone/README.md), [domain types and operator signatures](plan/flow-domains/README.md), [the graph builder and the CPU stack](plan/flow-graph/README.md), [testing the flow graph](plan/flow-testing/README.md), [the workbench and its patterns](plan/workbench/README.md), [the computational domain of a leaf](plan/computational-domain/README.md) |
