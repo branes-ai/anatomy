@@ -619,19 +619,6 @@ void put(std::map<std::string, tensor>& out, const std::string& name, const X& m
     }
 }
 
-template <class Sig, class Names>
-struct in_types;
-template <class Sig, fl::fixed_string... N>
-struct in_types<Sig, fl::ins<N...>> {
-    using type = std::tuple<fl::detail::port_value_t<Sig, N>...>;
-};
-template <class Sig, class Names>
-struct out_types;
-template <class Sig, fl::fixed_string... N>
-struct out_types<Sig, fl::outs<N...>> {
-    using type = std::tuple<fl::detail::port_value_t<Sig, N>...>;
-};
-
 template <class B, class Op>
 void put_members(std::map<std::string, tensor>& states, std::map<std::string, tensor>& params, const Op& op) {
     if constexpr (requires { typename B::cd_state; }) {
@@ -680,25 +667,30 @@ struct firing {
     std::vector<cd::problem> problems;
 };
 
+/// The declaration's inputs for one firing of handler H of Op: its in
+/// ports' values, its time, and the operator's state and parameters.
+template <class Op, fl::fixed_string H, class... In>
+[[nodiscard]] inputs inputs_of(const typename Op::type& op, Timestamp time, const In&... in) {
+    using B = typename Op::binding;
+    using Hd = fl::handler_t<B, H>;
+    inputs x;
+    x.time = time.ns;
+    std::size_t k = 0;
+    (detail::put(x.ports, std::string{Hd::in::names[k++]}, in), ...);
+    (void)k;  // unused for a handler with no in ports
+    detail::put_members<B>(x.states, x.params, op);
+    return x;
+}
+
 /// Fires handler H of Op on a copy of `op`, and evaluates its declaration on
-/// the same values, in the order `seed` picks.
+/// the same values, in the deterministic order.
 template <class Op, fl::fixed_string H, class... In>
 [[nodiscard]] firing fire_both(const typename Op::type& op, Timestamp time, const In&... in) {
     using B = typename Op::binding;
     using Hd = fl::handler_t<B, H>;
-    using Sig = typename B::signature;
     firing f;
 
-    // The declaration's inputs.
-    inputs x;
-    x.time = time.ns;
-    {
-        std::size_t k = 0;
-        (detail::put(x.ports, std::string{Hd::in::names[k++]}, in), ...);
-        (void)k;  // unused for a handler with no in ports
-    }
-    detail::put_members<B>(x.states, x.params, op);
-    const outputs o = evaluate(Hd::compute, cd::table_of<B, Hd>(), x, 0);
+    const outputs o = evaluate(Hd::compute, cd::table_of<B, Hd>(), inputs_of<Op, H>(op, time, in...), 0);
     f.problems = o.problems;
     for (const auto& [name, v] : o.ports) {
         f.declared[name] = v;
@@ -736,7 +728,6 @@ template <class Op, fl::fixed_string H, class... In>
     for (const auto& [name, v] : after_states) {
         f.handler["state " + name] = v;
     }
-    (void)sizeof(Sig);
     return f;
 }
 
