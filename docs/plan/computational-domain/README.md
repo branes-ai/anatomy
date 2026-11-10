@@ -74,18 +74,20 @@ struct apply : fl::handler<"apply", fl::ins<"w", "x">, fl::outs<"y">> {
 
     static constexpr fl::cd::system compute = [] {
         fl::cd::system s;
-        const auto R = s.extent("w", 0), C = s.extent("w", 1);   // bound from the ports
-        const auto i = s.index("i", 0, R), j = s.index("j", 0, C); // 0 <= i < R, 0 <= j < C
-        const auto acc = s.var("acc");
-        s.init(acc(i, -1), 0);                                     // the reduction's seed
-        s.eq(acc(i, j), acc(i, j - 1) + s.in("w")(i, j) * s.in("x")(j));
-        s.out("y")(i) = s.on(j == C - 1, acc(i, j));               // y leaves on the face j = C − 1
+        const auto rows = s.extent("w", 0);                         // bound from the ports
+        const auto cols = s.extent("w", 1);
+        const auto i = s.index("i", 0, rows);                       // 0 <= i < rows
+        const auto j = s.index("j", 0, cols);                       // 0 <= j < cols
+        const auto acc = s.var("acc", fl::cd::etype_of<E>);
+        s.init(acc, s.literal(0, fl::cd::etype_of<E>), s.face(j == -1));   // the reduction's seed
+        s.eq(acc, acc(i, j - 1) + s.in("w")(i, j) * s.in("x")(j));
+        s.write(s.out("y").at(i), acc(i, j), s.where(j == cols - 1));     // y leaves on the face j = cols − 1
         return s;
     }();
 };
 ```
 
-The spelling is C1's to settle. What a `system` holds is fixed here, because step 3's document and step 6's lowering read it:
+This is the spelling C1 settled (`flow/compute.hpp`). What a `system` holds is fixed here, because step 3's document and step 6's lowering read it:
 
 - **Parameters,** each bound to an extent of a port or a state, or to an integer. One declaration serves every instantiation of its operator: the `Linear` above describes both `Linear_f32_32x16` and `Linear_f64_8x32`.
 - **Counts:** a bounded extent has two parameters, its bound (`s.extent`) and its count (`s.count`). The count is known only at run time: the index space over a bounded extent runs to its count, and the checks enumerate every count from 0 to the bound (the Kalman filter's fixes). A bounded out port or state declares its count as an affine expression of parameters, `s.out("y").count(s.count("x"))`, and its output face writes only the rows below it. The evaluator sets the count before it writes the rows, so an empty input gives an empty output, as `CastFixes` gives one today.
@@ -243,7 +245,7 @@ Eleven PRs, each accepted on its own criteria.
    - the description;
    - K1 and K2 as `static_assert`s through `fl::registered`;
    - `fl::cd::check` for K3–K8;
-   - `fl::cd::count`, the depth and the halo;
+   - `fl::cd::count` and the depth. The halo lands with its client, the stencils (C7);
    - the text form.
 2. Toy declarations in `tests/sdk/`: a reduction, an elementwise map, a triangular space, a program of two systems, a state and a non-affine read. Each is checked, counted and printed.
 3. Compile-fail tests for K1 and K2, a mutation test that breaks each of K3–K7 in a valid declaration and checks the id reported, and K8's classification of each toy against the expected one (W10).
@@ -265,7 +267,7 @@ Eleven PRs, each accepted on its own criteria.
 
 **C6, convolution.** Rank-3 `data<D>` (W17), the missions' gate, and the pattern.
 
-**C7, stencils.** The divided evaluation (W15), and the pattern.
+**C7, stencils.** The halo of a tiling, the divided evaluation (W15), and the pattern.
 
 **C8, SOR/SSOR.** The pattern, with its depths (W16).
 
@@ -310,8 +312,8 @@ To be confirmed in this plan's PR.
 
 | Step | PR | State |
 |---|---|---|
-| C0: this plan | [#99](https://github.com/branes-ai/anatomy/pull/99) | open |
-| C1: the computational domain and its checks | | |
+| C0: this plan | [#99](https://github.com/branes-ai/anatomy/pull/99) | merged |
+| C1: the computational domain and its checks | [#100](https://github.com/branes-ai/anatomy/pull/100) | open |
 | C2: the MLP's and the Kalman filter's declarations | | |
 | C3: the DSP pipeline's declarations | | |
 | C4: carried edges and PID | | |

@@ -11,6 +11,7 @@
 
 add_library(branes_anatomy STATIC
     src/config/baseline.cpp
+    src/flow/compute.cpp
     src/flow/graph.cpp
     src/flow/trace.cpp
     src/log/compare.cpp

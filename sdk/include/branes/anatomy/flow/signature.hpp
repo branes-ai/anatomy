@@ -12,7 +12,9 @@
 ///   port<Name, D, Dir>          : a named domain or record, read, written, or both;
 ///                                 D may be a message type, whose domain_of it holds
 ///   state<Name, D>              : a named domain or record kept between firings
-///   index_space<Extents...>     : a leaf's computational domain; no_index_space otherwise
+///   index_space<Extents...>     : a leaf's extents; no_index_space otherwise. Superseded
+///                                 by a handler's computational domain (flow/compute.hpp),
+///                                 and kept until no mission's bridge names it
 ///   signature<Ports, States, S> : ports<...>, states<...>, and the index space
 ///   signature_of<Op>            : Op::signature, or a specialization
 ///
