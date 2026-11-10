@@ -71,7 +71,18 @@ cmake --build --preset msvc-debug
 ctest --preset msvc-debug       # every test, with the output of any that fails
 ```
 
-> **Opening the folder instead.** Visual Studio can open the repository folder and read `CMakePresets.json` directly, but its open-folder mode runs its own bundled CMake, which is too old. To use that mode, point it at CMake 4 in a `CMakeUserPresets.json` (not committed) with the vendor setting `"microsoft.com/VisualStudioSettings/CMake/1.0": { "cmakeExecutable": "C:/Program Files/CMake/bin/cmake.exe" }`. The generated solution avoids the question.
+> **Opening the folder instead.** Visual Studio can open the repository folder and read `CMakePresets.json` directly, but its open-folder mode runs its own bundled CMake, which is too old. To use that mode, add a `CMakeUserPresets.json` at the root (it isn't committed) with a configure preset that inherits one of the repository's and sets `cmakeExecutable` to CMake 4. Then select that preset in Visual Studio's configuration list:
+>
+> ```json
+> {
+>   "version": 6,
+>   "configurePresets": [
+>     { "name": "msvc-cmake4", "inherits": "msvc", "cmakeExecutable": "C:/Program Files/CMake/bin/cmake.exe" }
+>   ]
+> }
+> ```
+>
+> The generated solution avoids the question.
 
 > **The CI presets.** CI builds `msvc-ninja` and `msvc-ninja-debug`. They use Ninja, and need the MSVC environment active, as in the *Developer PowerShell for VS 2022*. Use them to reproduce a CI failure exactly.
 
@@ -96,7 +107,7 @@ Each line is one check of the oracle: its value, then its tolerance. Try the fla
 | Arguments | What it shows |
 |---|---|
 | `mlp`, `kalman`, `dsp` | each pattern's oracle, at its default number of inputs |
-| `dsp --tolerance-scale 0.1` | the margin: every tolerance divided by ten, and the pattern still passes |
+| `dsp --tolerance-scale 0.1` | the margin: every upper tolerance (`at most`) divided by ten, and the pattern still passes. Lower bounds (`at least`), such as the frame count and the stop band's 40 dB, aren't scaled |
 | `kalman --inputs 2000` | an oracle that fails: the Riccati check needs 500 updates, which 2000 inputs (about 180 updates) don't reach. The exit code is 1 |
 | `kalman --inputs 10 --mermaid k.mmd --canonical k.txt` | the graph as a flowchart and as its canonical form ([reading a graph](../guides/reading-a-graph.md)) |
 | `dsp --inputs 600 --trace a.brtrace` | every firing's outputs, written to a trace that `trace_compare` reads |
@@ -170,7 +181,7 @@ flowchart LR
     r1f1 -->|"mean"| out2[/"posterior_mean"/]
 ```
 
-(The flowchart is trimmed to two outputs; `workbench_run kalman --mermaid` prints all six.)
+(The flowchart is trimmed to two outputs; `workbench_run kalman --mermaid k.mmd` writes all six.)
 
 **What it demonstrates:**
 - **Declared state, shared by two regions:** one `Kalman` operator has four handlers. `predict` and `update` update its state (`x`, `P` and `t_last`, the time of the last predict) in two regions fired by two triggers. `prior` and `posterior` only read it. At a shared time, the clock's region runs first, as the driver orders the sources, so an update applies to the predicted state.
