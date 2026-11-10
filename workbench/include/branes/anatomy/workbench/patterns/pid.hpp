@@ -139,10 +139,6 @@ struct Plant {
             return std::string("pid: the plant's time constant is positive");
         }
         Plant p;
-#ifdef _MSC_VER
-        // tau > 0 here, but MSVC's optimizer, given a test's tau of 0, warns of the division anyway.
-#pragma warning(suppress : 4723)
-#endif
         p.a = std::exp(-c.cfg.h() / c.cfg.tau);
         p.b = c.cfg.gain * (1.0 - p.a);
         return p;

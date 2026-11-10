@@ -12,6 +12,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <system_error>
@@ -130,15 +131,18 @@ TEST_CASE("pid: W3 a seed's traces are byte-identical run to run", "[workbench][
 }
 
 TEST_CASE("pid: the operators refuse a clock or a plant they can't discretize", "[workbench][pid]") {
+    // The bad values are read through a volatile: given a constant 0, MSVC's
+    // optimizer warns of a division the check before it never reaches (C4723).
+    volatile double zero = 0.0;
     pid::config c;
-    c.clock_period_ns = 0;
+    c.clock_period_ns = static_cast<std::int64_t>(zero);
     CHECK_FALSE(pid::Pid<pid::terms::pid>::from_context(pid::context{c}));
     // So does the graph's stack, which builds its operators from the context.
     CHECK_FALSE(wb::run<pid::pattern>(c, wb::run_options{10, {}}));
     c = pid::config{};
-    c.tau = 0;
+    c.tau = zero;
     CHECK_FALSE(pid::Plant::from_context(pid::context{c}));
-    c.tau = -0.5;
+    c.tau = zero - 0.5;
     CHECK_FALSE(pid::Plant::from_context(pid::context{c}));
     CHECK(pid::Plant::from_context(pid::context{pid::config{}}));
 }
