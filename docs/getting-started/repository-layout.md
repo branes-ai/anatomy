@@ -22,4 +22,4 @@ The domain flow vocabulary ([ADR 0004](../adr/0004-domain-flow-composition.md)) 
 
 The workbench ([ADR 0005](../adr/0005-application-tier.md), [plan](../plan/workbench/README.md)) is in `<branes/anatomy/workbench/...>`: `driver.hpp` and `sources.hpp` (a pattern's inputs, merged in time order), `codecs.hpp` (trace codecs for `data<D>` and windows), `mtl5.hpp` (MTL5 views of `data<D>`, for a pattern's arithmetic; the workbench links MTL5, the SDK doesn't), `pattern.hpp` (what a pattern provides, its oracle's report, and its run) and `patterns/` (one header per pattern: its operators, graph, hand-wired run and oracle; `mlp.hpp`, `kalman.hpp`, `dsp.hpp`). `workbench/apps/workbench_run/` runs a pattern and prints its oracle's report. It is built with the tests (`ANATOMY_BUILD_WORKBENCH`), and no mission links it. [The workbench](../guides/the-workbench.md) is its guide.
 
-The [documentation map](../README.md) lists every document.
+Next: [a walkthrough in Visual Studio](visual-studio-walkthrough.md), which builds the repository, runs the workbench's patterns, and steps through a firing. The [documentation map](../README.md) lists every document.

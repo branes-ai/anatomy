@@ -12,6 +12,8 @@ ctest --preset gcc-debug
 
 The tests are built only when anatomy is the top-level project (`ANATOMY_BUILD_TESTS`), so a mission repo that fetches anatomy gets just the libraries.
 
+On Windows, [a walkthrough in Visual Studio](visual-studio-walkthrough.md) generates the solution with the `msvc` preset, and steps through the workbench in the debugger.
+
 ## Using anatomy from a mission repo
 
 A mission repo fetches anatomy pinned to a commit, and links its targets:
