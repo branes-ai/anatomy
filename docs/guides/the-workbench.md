@@ -36,7 +36,7 @@ dsp: 12 checks, all passed
   PASS  stop-band tone's attenuation [dB]                64.3031 (at least 40)
 ```
 
-- `--inputs N`: how many inputs the driver hands the stack, counting every source's. Each pattern has its own default, which is what its oracle needs: 100 for the MLP, 22 000 for the Kalman filter (2000 updates), and 8224 for the DSP pipeline (32 frames).
+- `--inputs N`: how many inputs the driver hands the stack, counting every source's. Each pattern has its own default, which is what its oracle needs: 100 for the MLP, 22 000 for the Kalman filter (2000 updates), 8224 for the DSP pipeline (32 frames), and 1500 for PID control (15 s at 100 Hz).
 - `--seed S`: the seed that every source and constant is drawn from.
 - `--tolerance-scale K`: multiplies every check's upper tolerance by K. A pattern that still passes at `K = 0.1` has ten times the margin it needs. `K = 0` makes every inexact check fail.
 - The exit code is 0 if every check passes, 1 if one fails, and 2 for a usage error or a file the tool can't write, as `trace_compare`'s is.

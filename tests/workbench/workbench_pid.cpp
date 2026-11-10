@@ -128,3 +128,17 @@ TEST_CASE("pid: W3 a seed's traces are byte-identical run to run", "[workbench][
     std::filesystem::remove(a, ec);
     std::filesystem::remove(b, ec);
 }
+
+TEST_CASE("pid: the operators refuse a clock or a plant they can't discretize", "[workbench][pid]") {
+    pid::config c;
+    c.clock_period_ns = 0;
+    CHECK_FALSE(pid::Pid<pid::terms::pid>::from_context(pid::context{c}));
+    // So does the graph's stack, which builds its operators from the context.
+    CHECK_FALSE(wb::run<pid::pattern>(c, wb::run_options{10, {}}));
+    c = pid::config{};
+    c.tau = 0;
+    CHECK_FALSE(pid::Plant::from_context(pid::context{c}));
+    c.tau = -0.5;
+    CHECK_FALSE(pid::Plant::from_context(pid::context{c}));
+    CHECK(pid::Plant::from_context(pid::context{pid::config{}}));
+}
