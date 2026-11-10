@@ -16,6 +16,12 @@
 // without them (Draw::accumulate false) is the recipe main drew for its seed,
 // which the canonical goldens hold (tests/sdk/flow_goldens.cpp, W9).
 //
+// Carried edges (docs/plan/computational-domain, C4) are drawn last, from a
+// third generator: an in port of a firing, but a Fold's, made to read
+// carried() of an out port of a firing of its own region, any of them, its
+// own and later ones among them. A recipe drawn without them (Draw::carried
+// false) is the recipe drawn before them.
+//
 // The randomness is std::mt19937_64's raw output, whose sequence the
 // standard fixes, mapped to ranges here: the standard distributions differ
 // between GCC, Clang and MSVC, and a seed must give one graph on all three.
@@ -114,6 +120,7 @@ struct SourceSpec {
     int field = -1;         ///< the field projected from a record: 0 for "a", 1 for "b"; else -1
     bool hold = false;
     std::size_t accumulate = 0;  ///< accumulate<N>: N, which is the reading Fold's capacity; else 0
+    bool carried = false;        ///< a carried edge, from a firing of the reader's region
 };
 
 struct FiringSpec {
@@ -187,6 +194,7 @@ struct Recipe {
             o << (k > 0 ? ", " : "")
               << (s.hold             ? "hold(" + what + ")"
                   : s.accumulate > 0 ? "accumulate<" + std::to_string(s.accumulate) + ">(" + what + ")"
+                  : s.carried        ? "carried(" + what + ")"
                                      : what);
         }
         o << ")\n";
@@ -228,6 +236,7 @@ private:
 /// What generate() draws.
 struct Draw {
     bool accumulate = true;  ///< Fold nodes, and their accumulate edges
+    bool carried = true;     ///< carried edges
 };
 
 /// A random valid graph. Each untimed handler fires once, in one region,
@@ -238,7 +247,10 @@ struct Draw {
 /// input, and of every firing described before it in another region (G7).
 /// Then, with Draw::accumulate, up to two Fold nodes, each firing once, last,
 /// in a region of its own choice, reading accumulate<N>() of a value input or
-/// an out port of another region.
+/// an out port of another region. Then, with Draw::carried, up to two in
+/// ports, but a Fold's, each made to read carried() of an out port of a
+/// firing of its own region (G7): any of them, so a carried edge may close
+/// a loop.
 [[nodiscard]] inline Recipe generate(std::uint64_t seed, Draw draw = {}) {
     Rng rng(seed);
     Recipe r;
@@ -367,6 +379,45 @@ struct Draw {
             r.firings.push_back(FiringSpec{r.nodes.size() - 1, 0, region, {src}});
         }
     }
+    if (draw.carried) {
+        Rng loop(seed ^ 0xCA44'1ED0'0000'0000ULL);
+        const std::size_t n_carried = loop.below(3);
+        for (std::size_t j = 0; j < n_carried; ++j) {
+            std::vector<std::pair<std::size_t, std::size_t>> ports;  // (firing, in port)
+            for (std::size_t i = 0; i < r.firings.size(); ++i) {
+                for (std::size_t k = 0; r.nodes[r.firings[i].node].kind != Kind::fold && k < r.firings[i].in.size();
+                     ++k) {
+                    if (!r.firings[i].in[k].carried) {
+                        ports.emplace_back(i, k);
+                    }
+                }
+            }
+            if (ports.empty()) {
+                break;
+            }
+            const auto [i, k] = ports[loop.below(ports.size())];
+            using From = SourceSpec::From;
+            std::vector<SourceSpec> can;
+            for (std::size_t d = 0; d < r.firings.size(); ++d) {
+                const FiringSpec& e = r.firings[d];
+                if (e.region != r.firings[i].region) {
+                    continue;
+                }
+                const auto& outs = handlers_of(r.nodes[e.node].kind)[e.handler].outs;
+                for (std::size_t p = 0; p < outs.size(); ++p) {
+                    if (outs[p]) {
+                        can.push_back(SourceSpec{From::firing, d, p, 0, false, 0, true});
+                        can.push_back(SourceSpec{From::firing, d, p, 1, false, 0, true});
+                    } else {
+                        can.push_back(SourceSpec{From::firing, d, p, -1, false, 0, true});
+                    }
+                }
+            }
+            if (!can.empty()) {
+                r.firings[i].in[k] = can[loop.below(can.size())];
+            }
+        }
+    }
     return r;
 }
 
@@ -408,15 +459,20 @@ using Node = std::variant<fl::node<toys::UnaryBinding>,
                           fl::node<toys::FoldBinding<toys::kFoldCapacity[3]>>>;
 using Out = std::variant<fl::value<Num>, fl::value<Two>>;
 
-/// A source, as a firing takes it: a value, held or not; or accumulated, for a Fold.
+/// A source, as a firing takes it: a value, held or not; accumulated, for a
+/// Fold; or a carried edge.
 struct Src {
     fl::value<Num> v;
     bool held = false;
     std::size_t accumulate = 0;
+    std::optional<fl::carried_value<Num>> carried;
 };
 
 template <class F>
 auto with(const Src& s, F f) {
+    if (s.carried) {
+        return f(*s.carried);
+    }
     return s.held ? f(fl::hold(s.v)) : f(s.v);
 }
 
@@ -562,32 +618,45 @@ inline std::vector<Out> fire(fl::scope& s, const Node& n, std::size_t h, const I
     std::vector<fl::output_port<Num>> outputs;
     std::vector<Origin> origins;
     std::optional<fl::value<Num>> first;  ///< what the first output is produced from
+    // A source's value: an input's, a constant's, or a firing's out port's.
+    const auto value_of = [&](const SourceSpec& s) -> fl::value<Num> {
+        switch (s.from) {
+        case SourceSpec::From::input:
+            return std::get<fl::input_port<Num>>(inputs[s.index]);
+        case SourceSpec::From::constant:
+            return constants[s.index];
+        case SourceSpec::From::firing:
+            break;
+        }
+        const detail::Out& o = written[s.index][s.port];
+        if (s.field < 0) {
+            return std::get<fl::value<Num>>(o);
+        }
+        if (s.field == 0) {
+            return fl::project<"a", &Two::a>(std::get<fl::value<Two>>(o));
+        }
+        return fl::project<"b", &Two::b>(std::get<fl::value<Two>>(o));
+    };
+    // Each carried edge, closed once every firing is described: its producer may be a later one.
+    struct Loop {
+        fl::carried_value<Num> edge;
+        std::size_t region = 0;
+        SourceSpec from;
+    };
+    std::vector<Loop> loops;
     for (std::size_t i = 0; i < r.firings.size(); ++i) {
         const FiringSpec& f = r.firings[i];
         const auto at = r.at.find(i);
         std::vector<detail::Src> in;
         for (const SourceSpec& s : f.in) {
-            fl::value<Num> v;
-            switch (s.from) {
-            case SourceSpec::From::input:
-                v = std::get<fl::input_port<Num>>(inputs[s.index]);
-                break;
-            case SourceSpec::From::constant:
-                v = constants[s.index];
-                break;
-            case SourceSpec::From::firing: {
-                const detail::Out& o = written[s.index][s.port];
-                if (s.field < 0) {
-                    v = std::get<fl::value<Num>>(o);
-                } else if (s.field == 0) {
-                    v = fl::project<"a", &Two::a>(std::get<fl::value<Two>>(o));
-                } else {
-                    v = fl::project<"b", &Two::b>(std::get<fl::value<Two>>(o));
-                }
-                break;
+            if (s.carried) {
+                loops.push_back(Loop{fl::carried<Num>(*scopes[f.region]), f.region, s});
+                // v is unread for a carried source; it holds the edge's source, so it isn't left empty.
+                const fl::carried_value<Num>& edge = loops.back().edge;
+                in.push_back(detail::Src{fl::value<Num>{static_cast<const fl::detail::source&>(edge)}, false, 0, edge});
+            } else {
+                in.push_back(detail::Src{value_of(s), s.hold, s.accumulate, std::nullopt});
             }
-            }
-            in.push_back(detail::Src{v, s.hold, s.accumulate});
         }
         written.push_back(detail::fire(
             *scopes[f.region], nodes[f.node], f.handler, inputs[at == r.at.end() ? f.region : at->second], in));
@@ -612,6 +681,10 @@ inline std::vector<Out> fire(fl::scope& s, const Node& n, std::size_t h, const I
                 output(fl::project<"b", &Two::b>(rec), p, 1);
             }
         }
+    }
+
+    for (const Loop& l : loops) {
+        fl::close(*scopes[l.region], l.edge, value_of(l.from));
     }
 
     if (r.unproduced) {

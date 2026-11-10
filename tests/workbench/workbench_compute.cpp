@@ -1,5 +1,6 @@
-// The computational domains of the MLP's, the Kalman filter's and the DSP
-// pipeline's handlers (docs/plan/computational-domain, C2 and C3):
+// The computational domains of the MLP's, the Kalman filter's, the DSP
+// pipeline's and PID control's handlers (docs/plan/computational-domain, C2,
+// C3 and C4):
 //   W10 every declared handler passes K1–K7, and K8 classifies it as stated;
 //   W11 each declaration, evaluated on the values of each of its firings in
 //       the run by hand, gives what its handler gives;
@@ -13,6 +14,7 @@
 #include <branes/anatomy/workbench/patterns/dsp.hpp>
 #include <branes/anatomy/workbench/patterns/kalman.hpp>
 #include <branes/anatomy/workbench/patterns/mlp.hpp>
+#include <branes/anatomy/workbench/patterns/pid.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -346,4 +348,55 @@ TEST_CASE("compute: a declaration that computes something else is caught", "[wor
     REQUIRE(o.problems.empty());
     const auto want = ev::to_tensor(B::apply::call({}, w.w2, x));
     CHECK(ev::difference(o.ports.at("y"), want) > 0.01);
+}
+
+// ── PID control ─────────────────────────────────────────────────────
+
+TEST_CASE("compute: PID control's handlers pass the checks, at one point each", "[workbench][compute][pid][W10]") {
+    const auto r = check_all<wb::pid::pattern>();
+    REQUIRE(r.size() == 4);
+    for (const auto& [who, rep] : r) {
+        INFO(who);
+        REQUIRE(rep.stages.size() == 1);
+        CHECK(rep.stages[0] == cd::shape::uniform);
+    }
+    // e, then the integral and the difference, then the command.
+    CHECK(r.at("PidPID_f64.step").depth == 3);
+    // The plant's next value, then its two writes.
+    CHECK(r.at("Plant_f64.step").depth == 2);
+}
+
+TEST_CASE("compute: PID control's counts are its handlers' operations", "[workbench][compute][pid][W13]") {
+    using cd::etype;
+    using cd::op;
+    const auto r = check_all<wb::pid::pattern>();
+    // e = r − y; I + h·e; (e − e_last)/h; kp·e + ki·I + kd·D. Every controller
+    // computes all three terms: the P and PI controllers' other gains are zero.
+    for (const char* who : {"PidP_f64.step", "PidPI_f64.step", "PidPID_f64.step"}) {
+        INFO(who);
+        const cd::report& c = r.at(who);
+        CHECK(c.count(op::sub, etype::f64) == 2);
+        CHECK(c.count(op::mul, etype::f64) == 4);
+        CHECK(c.count(op::add, etype::f64) == 3);
+        CHECK(c.count(op::div, etype::f64) == 1);
+    }
+    // a·x + b·u.
+    const cd::report& p = r.at("Plant_f64.step");
+    CHECK(p.count(op::mul, etype::f64) == 2);
+    CHECK(p.count(op::add, etype::f64) == 1);
+}
+
+TEST_CASE("compute: PID control's declarations give what its handlers give, exactly",
+          "[workbench][compute][pid][W11][W12]") {
+    const wb::pid::config c;
+    recorder rec;
+    (void)wb::pid::hand_run(c, 300, rec);
+    require_clean(rec);
+    REQUIRE(rec.worst.size() == 4);
+    for (const auto& [who, d] : rec.worst) {
+        INFO(who << ": " << static_cast<double>(d));
+        CHECK(d == 0);
+    }
+    CHECK(rec.firings.at("PidPID_f64.step") == 300);
+    CHECK(rec.firings.at("Plant_f64.step") == 3 * 300);
 }

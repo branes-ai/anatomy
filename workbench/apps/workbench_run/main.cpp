@@ -1,7 +1,7 @@
 // workbench_run: a pattern of the workbench, run with its default
 // configuration, and its oracle's report (docs/plan/workbench).
 //
-//   workbench_run <mlp|kalman|dsp> [--inputs N] [--seed S] [--trace run.brtrace]
+//   workbench_run <mlp|kalman|dsp|pid> [--inputs N] [--seed S] [--trace run.brtrace]
 //                 [--mermaid g.mmd] [--canonical g.txt] [--tolerance-scale K]
 //                 [--check] [--compute cd.txt]
 //
@@ -12,11 +12,12 @@
 //
 // Exits 0 if every check passes, 1 if one fails, and 2 on a usage error or a
 // file it can't write, as trace_compare does. --tolerance-scale multiplies
-// every check's tolerance by K, to show how much margin the pattern has.
+// every upper bound by K, to show how much margin the pattern has.
 // This tool runs only the patterns compiled into it: the MLP, the Kalman
-// filter and the DSP pipeline. --inputs defaults to the pattern's own number:
-// the Kalman filter's oracle needs 2000 updates, and the DSP pipeline's 32
-// frames are 8224 inputs.
+// filter, the DSP pipeline and PID control. --inputs defaults to the
+// pattern's own number: the Kalman filter's oracle needs 2000 updates, the
+// DSP pipeline's 32 frames are 8224 inputs, and PID control's 15 s are 1500
+// ticks.
 
 #include <branes/anatomy/flow/builder.hpp>
 #include <branes/anatomy/flow/compute.hpp>
@@ -26,6 +27,7 @@
 #include <branes/anatomy/workbench/patterns/dsp.hpp>
 #include <branes/anatomy/workbench/patterns/kalman.hpp>
 #include <branes/anatomy/workbench/patterns/mlp.hpp>
+#include <branes/anatomy/workbench/patterns/pid.hpp>
 
 #include <charconv>
 #include <cstdint>
@@ -48,7 +50,7 @@ int usage(const std::string& message) {
 }
 
 constexpr const char* kUsage =
-    "usage: workbench_run <mlp|kalman|dsp> [--inputs N] [--seed S] [--trace run.brtrace] [--mermaid g.mmd] "
+    "usage: workbench_run <mlp|kalman|dsp|pid> [--inputs N] [--seed S] [--trace run.brtrace] [--mermaid g.mmd] "
     "[--canonical g.txt] [--tolerance-scale K] [--check] [--compute cd.txt]";
 
 template <class T>
@@ -229,5 +231,12 @@ int main(int argc, char** argv) {
         }
         return run<wb::dsp::pattern>(cfg, *args, inputs, scale);
     }
-    return usage("no pattern '" + pattern + "': this build runs mlp, kalman and dsp\n" + kUsage);
+    if (pattern == "pid") {
+        wb::pid::config cfg;
+        if (seed) {
+            cfg.seed = *seed;
+        }
+        return run<wb::pid::pattern>(cfg, *args, inputs, scale);
+    }
+    return usage("no pattern '" + pattern + "': this build runs mlp, kalman, dsp and pid\n" + kUsage);
 }

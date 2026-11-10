@@ -25,13 +25,16 @@ std::string in_quotes(std::string_view s) {
 }
 
 /// An edge's rate rule, as its canonical line ends: nothing for an edge with
-/// none, so a graph without accumulate edges keeps the form it had before them.
+/// none, so a graph without accumulate or carried edges keeps the form it had
+/// before them.
 std::string rule(const Ref& ref) {
     switch (ref.rate) {
     case rate_rule::hold:
         return " hold";
     case rate_rule::accumulate:
         return " accumulate " + std::to_string(ref.capacity);
+    case rate_rule::carried:
+        return " carried";
     case rate_rule::none:
         break;
     }
@@ -68,6 +71,16 @@ std::string written(const Ref& ref) {
         s += "." + f;
     }
     return s;
+}
+
+/// A carried edge's Ref: its producer's, with the fields its reader projects
+/// after the producer's, and the rule.
+Ref carried_ref(const Ref& producer, const std::vector<std::string>& projected) {
+    Ref r = producer;
+    r.path.insert(r.path.end(), projected.begin(), projected.end());
+    r.rate = rate_rule::carried;
+    r.capacity = 0;
+    return r;
 }
 
 std::string text(state_role s) {
@@ -274,6 +287,15 @@ scope builder::region_of(const std::string& input) {
 }
 
 void builder::check_source(const Ref& ref, const std::string& trigger, const std::string& key) {
+    if (ref.rate == rate_rule::carried) {
+        // Its producer is checked as it is closed (close_carried).
+        if (ref.region != trigger) {
+            fail(key,
+                 "G7: a carried edge is read in its own region: it is " + in_quotes(ref.region) + "'s, and " +
+                     in_quotes(trigger) + " reads it");
+        }
+        return;
+    }
     const bool ruled = ref.rate != rate_rule::none;  // hold or accumulate
     switch (ref.from) {
     case Ref::kind::constant:
@@ -402,6 +424,19 @@ std::vector<detail::source> builder::fire(scope& s,
     for (const detail::source& src : in) {
         refs.push_back(src.ref);
     }
+    // A carried edge's reader names its producer, which may fire after it:
+    // close_carried() names it then.
+    for (std::size_t k = 0; k < in.size(); ++k) {
+        if (in[k].carried == detail::no_slot || in[k].ref.rate != rate_rule::carried || in[k].ref.region != trigger) {
+            continue;
+        }
+        carried_rec& c = carried_[in[k].carried];
+        if (c.closed) {
+            refs[k] = carried_ref(c.from.ref, in[k].ref.path);
+        } else {
+            c.readers.push_back({s.region_, region.firings.size(), k});
+        }
+    }
     region.firings.push_back(Firing{op, h.name, at_input, std::move(refs), std::move(composite), h.state});
 
     firing_rec run{n.instance,
@@ -432,6 +467,57 @@ std::vector<detail::source> builder::fire(scope& s,
     return result;
 }
 
+detail::source builder::add_carried(scope& s, std::shared_ptr<void> slot, detail::copy_fn copy) {
+    carried_rec c;
+    c.region = s.region_;
+    c.copy = copy;
+    detail::source src;
+    src.ref.from = Ref::kind::firing;
+    src.ref.region = graph_.regions[s.region_].trigger;
+    src.ref.rate = rate_rule::carried;
+    src.carried = carried_.size();
+    if (slot) {
+        c.slot = add_slot(std::move(slot));
+        src.slot = c.slot;
+    } else if (runs_) {
+        fail(src.ref.region, "the CPU stack runs ports that carry message types: a carried edge carries none");
+    }
+    carried_.push_back(std::move(c));
+    return src;
+}
+
+std::string builder::carried_key(const carried_rec& c) const {
+    const std::string& trigger = graph_.regions[c.region].trigger;
+    if (c.readers.empty()) {
+        return trigger;
+    }
+    const auto& [r, f, k] = c.readers.front();
+    return graph_.regions[r].trigger + "[" + std::to_string(f) + "][" + std::to_string(k) + "]";
+}
+
+void builder::close_carried(scope& s, std::size_t carried, const detail::source& from) {
+    carried_rec& c = carried_[carried];
+    const std::string& trigger = graph_.regions[c.region].trigger;
+    const std::string key = carried_key(c);
+    if (c.closed) {
+        fail(key, "G7: a carried edge has one producer, and is closed once");
+        return;
+    }
+    if (s.region_ != c.region || from.ref.from != Ref::kind::firing || from.ref.region != trigger ||
+        from.ref.rate != rate_rule::none) {
+        fail(key,
+             "G7: a carried edge carries an out port of a firing of its own region, " + in_quotes(trigger) + ": " +
+                 written(from.ref) + " is not one");
+        return;
+    }
+    c.closed = true;
+    c.from = from;
+    for (const auto& [r, f, k] : c.readers) {
+        Ref& ref = graph_.regions[r].firings[f].in[k];
+        ref = carried_ref(from.ref, ref.path);
+    }
+}
+
 void builder::produce_source(std::size_t out, const detail::source& from) {
     output_rec& o = outputs_[out];
     const std::string key = "out." + o.name;
@@ -450,6 +536,14 @@ void builder::produce_source(std::size_t out, const detail::source& from) {
 result<Graph, config::ConfigError> builder::build() const {
     if (error_) {
         return *error_;
+    }
+    for (const carried_rec& c : carried_) {
+        if (!c.closed) {
+            return config::ConfigError{graph_.mission,
+                                       carried_key(c),
+                                       "G7: every carried edge is closed: one of region " +
+                                           in_quotes(graph_.regions[c.region].trigger) + "'s has no producer"};
+        }
     }
     for (const node_rec& n : nodes_) {
         for (std::size_t i = 0; n.must_fire && i < n.handlers.size(); ++i) {
@@ -578,6 +672,17 @@ result<stack, config::ConfigError> builder::build_stack() && {
             }
         }
         st.latches_[a.region].push_back(stack::latch{a.ops->latch, acc, slots_[a.window].get()});
+    }
+    // Each carried edge is copied from its producer as its region's run ends.
+    st.carries_.resize(st.regions_.size());
+    for (const carried_rec& c : carried_) {
+        const void* from = resolve(c.from);
+        if (from == nullptr || c.slot == detail::no_slot) {
+            return config::ConfigError{graph_.mission,
+                                       carried_key(c),
+                                       "the CPU stack has no value for a carried edge's source: it is no builder's"};
+        }
+        st.carries_[c.region].push_back(stack::carry{c.copy, slots_[c.slot].get(), from});
     }
     for (const output_rec& o : outputs_) {
         const void* out = resolve(o.from);
