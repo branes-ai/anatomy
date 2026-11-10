@@ -43,6 +43,10 @@ expect(0 "kalman: 9 declarations, all passed" kalman --check)
 expect(0 "dsp: no handler declares a computational domain" dsp --check)
 expect(0 "mlp: 3 checks, all passed" mlp --inputs 5 --compute ${WORK_DIR}/cd.txt)
 expect(2 "cannot write" mlp --compute ${WORK_DIR}/none/cd.txt)
+expect(0 "kalman: 9 declarations, all passed" kalman --check --compute ${WORK_DIR}/kalman_cd.txt)
+if(NOT EXISTS ${WORK_DIR}/kalman_cd.txt)
+    message(FATAL_ERROR "--check --compute wrote no kalman_cd.txt")
+endif()
 
 # Two runs of one seed: their traces are equal, record by record.
 execute_process(COMMAND ${TRACE_COMPARE} --a ${a} --b ${b} RESULT_VARIABLE rc OUTPUT_VARIABLE out)

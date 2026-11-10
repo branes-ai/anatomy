@@ -5,10 +5,10 @@
 //                 [--mermaid g.mmd] [--canonical g.txt] [--tolerance-scale K]
 //                 [--check] [--compute cd.txt]
 //
-// --check checks the computational domains its handlers declare (K1–K8,
-// flow/compute.hpp), one line each, instead of running the pattern, and
-// exits 1 if one fails. --compute writes each declaration as text, then runs
-// the pattern (docs/plan/computational-domain, C2).
+// --compute writes each computational domain its handlers declare
+// (flow/compute.hpp) as text. --check then checks them (K1–K8), one line
+// each, instead of running the pattern, and exits 1 if one fails; without
+// it, the pattern runs (docs/plan/computational-domain, C2).
 //
 // Exits 0 if every check passes, 1 if one fails, and 2 on a usage error or a
 // file it can't write, as trace_compare does. --tolerance-scale multiplies
@@ -137,11 +137,11 @@ std::string declarations_text() {
 
 template <class P>
 int run(typename P::config cfg, const an::harness::Args& args, std::optional<std::size_t> inputs, double scale) {
-    if (args.has("check")) {
-        return check_declarations<P>();
-    }
     if (const auto file = args.value("compute"); file && !write_file(*file, declarations_text<P>())) {
         return usage("cannot write " + *file);
+    }
+    if (args.has("check")) {
+        return check_declarations<P>();
     }
     if (const auto mmd = args.value("mermaid"), txt = args.value("canonical"); mmd || txt) {
         const auto g = wb::describe<P>(cfg);

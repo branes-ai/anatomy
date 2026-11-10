@@ -51,7 +51,8 @@ std::map<std::string, cd::report> check_all() {
 
 /// The run by hand's hook for W11 and W12: each firing's declaration against
 /// its handler, the largest difference per leaf, and, for the first `orders`
-/// firings of each leaf, 20 random orders against the deterministic one.
+/// firings of each leaf and every seventh, 20 random orders against the
+/// deterministic one.
 struct recorder {
     std::map<std::string, long double> worst;
     std::map<std::string, std::size_t> firings;
@@ -76,7 +77,9 @@ struct recorder {
             }
             w = std::max(w, ev::difference(it->second, h));
         }
-        if (firings[who]++ < orders) {
+        // The first firings, and every seventh, so later ones (several fixes) are sampled too.
+        const std::size_t nth = firings[who]++;
+        if (nth < orders || nth % 7 == 0) {
             using B = typename Op::binding;
             using Hd = fl::handler_t<B, H>;
             const ev::inputs x = ev::inputs_of<Op, H>(op, t, in...);

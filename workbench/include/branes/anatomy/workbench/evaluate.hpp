@@ -733,7 +733,8 @@ template <class Op, fl::fixed_string H, class... In>
 
 /// The largest difference between two tensors' elements, relative to the
 /// largest magnitude in `ref` (or absolute, if that is 0); infinity if their
-/// shapes or counts differ.
+/// shapes or counts differ, or if an element is NaN in one and not the other.
+/// Two NaNs, or two infinities of one sign, at an element agree.
 [[nodiscard]] inline long double difference(const tensor& a, const tensor& ref) {
     if (a.count != ref.count || a.v.size() != ref.v.size()) {
         return std::numeric_limits<long double>::infinity();
@@ -747,8 +748,23 @@ template <class Op, fl::fixed_string H, class... In>
             diff = std::max(diff, static_cast<long double>(x.i == y.i ? 0 : 1));
             continue;
         }
-        scale = std::max(scale, std::hypot(y.re, y.im));
-        diff = std::max(diff, std::hypot(x.re - y.re, x.im - y.im));
+        const bool xnan = std::isnan(x.re) || std::isnan(x.im);
+        const bool ynan = std::isnan(y.re) || std::isnan(y.im);
+        if (xnan || ynan) {
+            if (xnan != ynan) {
+                return std::numeric_limits<long double>::infinity();
+            }
+            continue;
+        }
+        if (x.re == y.re && x.im == y.im) {
+            continue;  // equal, infinities included
+        }
+        const long double d = std::hypot(x.re - y.re, x.im - y.im);
+        if (std::isnan(d) || std::isinf(d)) {
+            return std::numeric_limits<long double>::infinity();
+        }
+        scale = std::max(scale, std::isinf(y.re) || std::isinf(y.im) ? scale : std::hypot(y.re, y.im));
+        diff = std::max(diff, d);
     }
     return scale > 0 ? diff / scale : diff;
 }
