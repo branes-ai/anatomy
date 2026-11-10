@@ -33,8 +33,23 @@
 ///     largest magnitudes are at the pass-band tones' bins, and each tone's
 ///     magnitude is within 1 % of A·|H(f)|·Σw/2, H evaluated from the taps;
 ///   the design puts the stop-band tone at least 40 dB down.
+///
+/// Computational domains (docs/plan/computational-domain, C3), each holding
+/// its handler's order of operations, so its declaration gives what the
+/// handler gives exactly:
+///   Fir        a reduction of L taps along i, over the delay line shifted
+///              by one: L multiply-adds; it writes the shifted line back
+///   Framer     the window's items as the frame, its count kept, and the
+///              number it dropped
+///   Hann, ToComplex, MagnitudeOp   elementwise
+///   Fft        a space of (stage, point): stage 0 is the input in
+///              bit-reversed order, and stage s each butterfly of length 2^s.
+///              Its reads of the butterfly's partner and of the input aren't
+///              affine, so it is the first non-affine system (K8). (N/2)·log2 N
+///              complex multiplies, and as many adds and subtractions
 
 #include <branes/anatomy/flow/builder.hpp>
+#include <branes/anatomy/flow/compute.hpp>
 #include <branes/anatomy/flow/data.hpp>
 #include <branes/anatomy/flow/domain.hpp>
 #include <branes/anatomy/flow/signature.hpp>
@@ -47,6 +62,7 @@
 #include <branes/anatomy/workbench/sources.hpp>
 
 #include <array>
+#include <bit>
 #include <cmath>
 #include <complex>
 #include <cstddef>
@@ -61,6 +77,7 @@
 namespace branes::anatomy::workbench::dsp {
 
 namespace fl = branes::anatomy::flow;
+namespace cd = branes::anatomy::flow::cd;
 
 inline constexpr std::size_t kFrame = 256;
 inline constexpr std::size_t kTaps = 63;
@@ -180,6 +197,23 @@ struct FirBinding {
                                               fl::port<"y", Sample, fl::direction::out>>,
                                     fl::states<fl::state<"delay", TapsD>>>;
     struct filter : fl::handler<"filter", fl::ins<"x", "taps">, fl::outs<"y">, fl::state_role::update> {
+        /// The line shifted by one, x first, and y = Σ h(i)·line(i) in tap order.
+        static constexpr cd::system compute = [] {
+            constexpr cd::etype e = cd::etype::f64;
+            cd::system s;
+            const auto taps = s.extent("taps", 0);
+            const auto i = s.index("i", 0, taps);
+            const auto delay = s.state("delay");
+            const auto line = s.var("line", e);
+            const auto acc = s.var("acc", e);
+            s.eq(line, s.in("x")(), s.where(i == 0));
+            s.eq(line, delay(i - 1), s.where(i >= 1));
+            s.init(acc, s.literal(0, e), s.face(i == -1));
+            s.eq(acc, acc(i - 1) + s.in("taps")(i)*line(i));
+            s.write(delay.at(i), line(i));
+            s.write(s.out("y").at(), acc(i), s.where(i == taps - 1));
+            return s;
+        }();
         static Sample call(Fir<double, kTaps>& op, const Sample& x, const Taps& h) {
             Sample y;
             y() = op.filter(h, x());
@@ -187,6 +221,7 @@ struct FirBinding {
         }
     };
     using handlers = fl::handlers<filter>;
+    using cd_state = cd::members<cd::member<"delay", &Fir<double, kTaps>::delay>>;
 };
 
 /// A window of samples as a frame, its count kept, and the number it dropped.
@@ -197,6 +232,18 @@ struct FramerBinding {
                                               fl::port<"frame", Frame, fl::direction::out>,
                                               fl::port<"dropped", Dropped, fl::direction::out>>>;
     struct apply : fl::handler<"apply", fl::ins<"w">, fl::outs<"frame", "dropped">> {
+        /// The number dropped, at the one point of a stage of no indices, so
+        /// an empty window writes it too; then the items.
+        static constexpr cd::system compute = [] {
+            cd::system s;
+            s.write(s.out("dropped").at(), s.in("w.dropped")());
+            s.stage();
+            const auto m = s.count("w.items");
+            const auto k = s.index("k", 0, m);
+            s.write(s.out("frame").at(k), s.in("w.items")(k));
+            s.set_count(s.out("frame"), m);
+            return s;
+        }();
         static std::tuple<Frame, Dropped> call(const Framer&, const Window& w) {
             Frame f;
             (void)f.resize(w.count);
@@ -219,6 +266,14 @@ struct HannBinding {
                                               fl::port<"w", Real, fl::direction::in>,
                                               fl::port<"y", Real, fl::direction::out>>>;
     struct apply : fl::handler<"apply", fl::ins<"x", "w">, fl::outs<"y">> {
+        static constexpr cd::system compute = [] {
+            cd::system s;
+            const auto n = s.index("n", 0, s.extent("y", 0));
+            const auto m = s.count("x");
+            s.write(s.out("y").at(n), s.in("x")(n)*s.in("w")(n), s.where(n < m));
+            s.write(s.out("y").at(n), s.literal(0, cd::etype::f64), s.where(n >= m));
+            return s;
+        }();
         static Real call(const Hann&, const Frame& x, const Real& w) {
             Real y;
             for (std::size_t n = 0; n < x.count(); ++n) {
@@ -236,6 +291,12 @@ struct ToComplexBinding {
     using signature =
         fl::signature<fl::ports<fl::port<"x", Real, fl::direction::in>, fl::port<"y", Spectrum, fl::direction::out>>>;
     struct apply : fl::handler<"apply", fl::ins<"x">, fl::outs<"y">> {
+        static constexpr cd::system compute = [] {
+            cd::system s;
+            const auto n = s.index("n", 0, s.extent("x", 0));
+            s.write(s.out("y").at(n), s.cast(s.in("x")(n), cd::etype::c128));
+            return s;
+        }();
         static Spectrum call(const ToComplex&, const Real& x) {
             Spectrum y;
             for (std::size_t n = 0; n < kFrame; ++n) {
@@ -296,6 +357,40 @@ struct FftBinding {
     using signature = fl::signature<
         fl::ports<fl::port<"x", Spectrum, fl::direction::in>, fl::port<"y", Spectrum, fl::direction::out>>>;
     struct apply : fl::handler<"apply", fl::ins<"x">, fl::outs<"y">> {
+        /// v(s, p) over log2(N) + 1 stages of N points. An index expression
+        /// has no logarithm, so log2(N) is the declaration's constant; N is
+        /// the port's extent.
+        ///   stage 0: v(0, p) = x(r(p)), r reversing p's log2(N) bits
+        ///   stage s: the butterflies of length 2^s, half h = 2^(s-1). At a
+        ///            point p whose offset q = p mod 2^s is below h,
+        ///              t(s, p) = twiddle(q·(N >> s))·v(s − 1, p + h)
+        ///              v(s, p) = v(s − 1, p) + t(s, p)
+        ///            and at its partner p + h, v(s − 1, p) − t(s, p)
+        ///   y(p) = v(log2 N, p)
+        static constexpr cd::system compute = [] {
+            constexpr cd::etype z = cd::etype::c128;
+            constexpr int bits = std::countr_zero(kFrame);
+            cd::system s;
+            const auto n = s.extent("x", 0);
+            const auto st = s.index("s", 0, bits + 1);
+            const auto p = s.index("p", 0, n);
+            const auto twiddle = s.param("twiddle", z, 1);
+            const auto v = s.var("v", z);
+            const auto t = s.var("t", z);
+            auto r = (p % 2) << (bits - 1);
+            for (int b = 1; b < bits; ++b) {
+                r = r + (((p >> b) % 2) << (bits - 1 - b));
+            }
+            s.eq(v, s.in("x")(r), s.where(st == 0));
+            const auto len = 1 << st;
+            const auto half = len >> 1;
+            const auto q = p % len;
+            s.eq(t, twiddle(q * (n >> st)) * v(st - 1, p + half), s.where(st >= 1, q < half));
+            s.eq(v, v(st - 1, p) + t(st, p), s.where(st >= 1, q < half));
+            s.eq(v, v(st - 1, p - half) - t(st, p - half), s.where(st >= 1, q >= half));
+            s.write(s.out("y").at(p), v(st, p), s.where(st == bits));
+            return s;
+        }();
         static Spectrum call(const Fft<double, kFrame>& op, const Spectrum& x) {
             Spectrum y;
             op.transform(x, y);
@@ -303,6 +398,7 @@ struct FftBinding {
         }
     };
     using handlers = fl::handlers<apply>;
+    using cd_params = cd::members<cd::member<"twiddle", &Fft<double, kFrame>::twiddle>>;
 };
 
 /// |X_k| for k = 0 to N/2: a real frame's spectrum is symmetric about N/2.
@@ -312,6 +408,12 @@ struct MagnitudeBinding {
     using signature = fl::signature<
         fl::ports<fl::port<"x", Spectrum, fl::direction::in>, fl::port<"y", Magnitude, fl::direction::out>>>;
     struct apply : fl::handler<"apply", fl::ins<"x">, fl::outs<"y">> {
+        static constexpr cd::system compute = [] {
+            cd::system s;
+            const auto k = s.index("k", 0, s.extent("y", 0));
+            s.write(s.out("y").at(k), cd::cabs(s.in("x")(k)));
+            return s;
+        }();
         static Magnitude call(const MagnitudeOp&, const Spectrum& x) {
             Magnitude y;
             for (std::size_t k = 0; k < kBins; ++k) {
@@ -410,8 +512,10 @@ struct sample {
 
 /// The operators called by hand on the same stream, in the graph's order:
 /// the samples and the frame ticks merged as the driver merges them, and the
-/// window kept as an accumulator keeps it.
-[[nodiscard]] inline std::vector<sample> hand_run(const config& c, std::size_t inputs) {
+/// window kept as an accumulator keeps it. The hook sees each handler's
+/// values before it runs (pattern.hpp).
+template <class Hook = no_hook>
+[[nodiscard]] std::vector<sample> hand_run(const config& c, std::size_t inputs, Hook&& hook = {}) {
     const context ctx{c};
     Fir<double, kTaps> fir;
     const Fft<double, kFrame> fft = *Fft<double, kFrame>::from_context(ctx);
@@ -428,7 +532,9 @@ struct sample {
         const std::int64_t tf = frame_start_ns(c) + static_cast<std::int64_t>(frames * kFrame) * period;
         s.frame.clear();
         if (ts <= tf) {  // the sample first, at a shared time
-            s.filtered = FirBinding::filter::call(fir, sample_of(c, k), taps);
+            const Sample x = sample_of(c, k);
+            hook.template before<Fir64, "filter">(fir, Timestamp{ts}, x, taps);
+            s.filtered = FirBinding::filter::call(fir, x, taps);
             if (w.count < kFrame) {
                 w.items[w.count++] = s.filtered;
             } else {  // the latest N, oldest first
@@ -442,16 +548,22 @@ struct sample {
             s.t = Timestamp{ts};
             ++k;
         } else {
+            const Timestamp t{tf};
             frame_outputs o;
+            hook.template before<Framer64, "apply">({}, t, w);
             std::tie(o.frame, o.dropped) = FramerBinding::apply::call({}, w);
             w = Window{};
+            hook.template before<Hann64, "apply">({}, t, o.frame, hann);
             const Real wf = HannBinding::apply::call({}, o.frame, hann);
+            hook.template before<ToComplex64, "apply">({}, t, wf);
             const Spectrum z = ToComplexBinding::apply::call({}, wf);
+            hook.template before<Fft128, "apply">(fft, t, z);
             o.spectrum = FftBinding::apply::call(fft, z);
+            hook.template before<Magnitude128, "apply">({}, t, o.spectrum);
             o.magnitude = MagnitudeBinding::apply::call({}, o.spectrum);
             s.frame.push_back(o);
             s.source = 1;
-            s.t = Timestamp{tf};
+            s.t = t;
             ++frames;
         }
         out.push_back(s);
@@ -484,6 +596,12 @@ struct pattern {
     using context = dsp::context;
     using ports = dsp::ports;
     using sample = dsp::sample;
+    using leaves = workbench::leaves<leaf<Fir64, "filter">,
+                                     leaf<Framer64, "apply">,
+                                     leaf<Hann64, "apply">,
+                                     leaf<ToComplex64, "apply">,
+                                     leaf<Fft128, "apply">,
+                                     leaf<Magnitude128, "apply">>;
 
     template <class G>
     [[nodiscard]] static ports graph(G& g, const config& c) {
