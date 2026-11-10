@@ -1,5 +1,5 @@
-// The computational domains of the MLP's and the Kalman filter's handlers
-// (docs/plan/computational-domain, C2):
+// The computational domains of the MLP's, the Kalman filter's and the DSP
+// pipeline's handlers (docs/plan/computational-domain, C2 and C3):
 //   W10 every declared handler passes K1–K7, and K8 classifies it as stated;
 //   W11 each declaration, evaluated on the values of each of its firings in
 //       the run by hand, gives what its handler gives;
@@ -10,11 +10,13 @@
 #include <branes/anatomy/flow/compute.hpp>
 #include <branes/anatomy/workbench/evaluate.hpp>
 #include <branes/anatomy/workbench/pattern.hpp>
+#include <branes/anatomy/workbench/patterns/dsp.hpp>
 #include <branes/anatomy/workbench/patterns/kalman.hpp>
 #include <branes/anatomy/workbench/patterns/mlp.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <bit>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -233,6 +235,92 @@ TEST_CASE("compute: the Kalman filter's declarations give what its handlers give
         CHECK(d == 0);
     }
     CHECK(rec.firings.at("Kalman_f64.update") > 30);
+}
+
+// ── The DSP pipeline ────────────────────────────────────────────────
+
+TEST_CASE("compute: the DSP pipeline's handlers pass the checks, and the FFT isn't affine",
+          "[workbench][compute][dsp][W10]") {
+    const auto r = check_all<wb::dsp::pattern>();
+    REQUIRE(r.size() == 6);
+    // The butterfly's partner, p + 2^(s-1), and the bit-reversed input.
+    CHECK(r.at("Fft_c128_256.apply").stages[0] == cd::shape::non_affine);
+    // The FIR reads the old line one tap back, a state's read: its variables' reads are uniform.
+    CHECK(r.at("Fir_f64_63.filter").stages[0] == cd::shape::uniform);
+    REQUIRE(r.at("Framer_f64_256.apply").stages.size() == 2);
+    for (const char* who : {"Hann_f64_256.apply", "Cast_f64_c128_256.apply", "Magnitude_c128_129.apply"}) {
+        INFO(who);
+        CHECK(r.at(who).stages[0] == cd::shape::uniform);
+        CHECK(r.at(who).depth == 1);
+    }
+}
+
+TEST_CASE("compute: the DSP pipeline's counts are their closed forms", "[workbench][compute][dsp][W13]") {
+    using cd::etype;
+    using cd::op;
+    namespace d = wb::dsp;
+    const auto r = check_all<d::pattern>();
+    // 63 multiply-adds per sample, and a reduction of L terms is L + 2 deep.
+    const cd::report& fir = r.at("Fir_f64_63.filter");
+    CHECK(fir.count(op::mul, etype::f64) == d::kTaps);
+    CHECK(fir.count(op::add, etype::f64) == d::kTaps);
+    CHECK(fir.depth == d::kTaps + 2);
+    // (N/2)·log2 N butterflies: a complex multiply, an add and a subtraction each.
+    constexpr std::uint64_t log2n = std::countr_zero(d::kFrame);
+    constexpr std::uint64_t butterflies = d::kFrame / 2 * log2n;
+    const cd::report& fft = r.at("Fft_c128_256.apply");
+    CHECK(fft.count(op::mul, etype::c128) == butterflies);
+    CHECK(fft.count(op::add, etype::c128) == butterflies);
+    CHECK(fft.count(op::sub, etype::c128) == butterflies);
+    CHECK(fft.count(op::mul) + fft.count(op::add) + fft.count(op::sub) == 3 * butterflies);
+    // The input, then two definitions per stage (t, then y), then the write.
+    CHECK(fft.depth == 2 * log2n + 2);
+    CHECK(r.at("Hann_f64_256.apply").count(op::mul, etype::f64) == d::kFrame);
+    CHECK(r.at("Cast_f64_c128_256.apply").count(op::cast) == d::kFrame);
+    CHECK(r.at("Magnitude_c128_129.apply").count(op::cabs) == d::kBins);
+    CHECK(r.at("Framer_f64_256.apply").counts.empty());
+}
+
+TEST_CASE("compute: the DSP pipeline's declarations give what its handlers give, exactly",
+          "[workbench][compute][dsp][W11][W12]") {
+    const wb::dsp::config c;
+    recorder rec;
+    (void)wb::dsp::hand_run(c, 3 * (wb::dsp::kFrame + 1), rec);
+    require_clean(rec);
+    REQUIRE(rec.worst.size() == 6);
+    for (const auto& [who, d] : rec.worst) {
+        INFO(who << ": " << static_cast<double>(d));
+        CHECK(d == 0);
+    }
+    CHECK(rec.firings.at("Fir_f64_63.filter") == 3 * wb::dsp::kFrame);
+    CHECK(rec.firings.at("Fft_c128_256.apply") == 3);
+}
+
+TEST_CASE("compute: a short window's frame, and its drops, are declared too", "[workbench][compute][dsp][W11]") {
+    namespace d = wb::dsp;
+    d::Window w;
+    for (std::size_t k = 0; k < 100; ++k) {
+        w.items[k]() = static_cast<double>(k) - 49.5;
+    }
+    w.count = 100;
+    w.dropped = 3;
+    const d::Real hann = d::hann_of();
+    for (const std::size_t count : {std::size_t{0}, std::size_t{1}, std::size_t{100}}) {
+        w.count = count;
+        INFO("count " << count);
+        const ev::firing framed = ev::fire_both<d::Framer64, "apply">({}, Timestamp{}, w);
+        REQUIRE(framed.problems.empty());
+        for (const auto& [name, h] : framed.handler) {
+            INFO(name);
+            CHECK(ev::difference(framed.declared.at(name), h) == 0);
+        }
+        const auto [frame, dropped] = d::FramerBinding::apply::call({}, w);
+        CHECK(dropped() == 3);
+        CHECK(frame.count() == count);
+        const ev::firing windowed = ev::fire_both<d::Hann64, "apply">({}, Timestamp{}, frame, hann);
+        REQUIRE(windowed.problems.empty());
+        CHECK(ev::difference(windowed.declared.at("y"), windowed.handler.at("y")) == 0);
+    }
 }
 
 TEST_CASE("compute: a declaration that computes something else is caught", "[workbench][compute][W11]") {
