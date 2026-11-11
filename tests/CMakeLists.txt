@@ -176,6 +176,7 @@ set(flow_compile_fail
     "w4_shape|G4: every edge joins two ports of the same domain"
     "w4_structure|G4: every edge joins two ports of the same domain"
     "w4_element|G4: every edge joins two ports of the same domain"
+    "w4_rank3|G4: every edge joins two ports of the same domain"
     "w6_shape|accumulate: a message whose domain has a shape isn't accumulated"
     "w7_capacity|G7: an accumulator holds at least one value"
     "g4_window|G4: every edge joins two ports of the same domain"

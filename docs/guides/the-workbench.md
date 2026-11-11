@@ -13,13 +13,14 @@ It is in `workbench/` and builds the library `branes::anatomy_workbench` and the
 | `dsp` | at 8192 Hz, a band-pass FIR per sample, then per frame of 256: `accumulate<256>`, a Hann window, a radix-2 FFT and a magnitude | the `accumulate` rate rule; complex elements | full windows; the FIR and the spectrum against `long double` (a direct DFT) and Parseval, to 1e-12; the tones' bins, and their magnitudes against `A·\|H(f)\|·Σw/2` to 1 %; 40 dB of stop band |
 | `pid` | on a 100 Hz clock, three loops of a controller (P, PI and PID) and a first-order plant `y' = (K·u − y)/τ`, discretized exactly, toward a step setpoint | the `carried` edge, which closes a loop within a region: each controller reads its plant's output from the previous tick | the P loop against its closed form to 1e-12; the PI and PID loops' errors below 1e-9 after 20 time constants; the PI loop's overshoot against its poles' modal form to 1 % |
 | `attitude` | two complementary filters of a unit quaternion, each integrating a 400 Hz gyro exactly and correcting toward gravity from a 50 Hz accelerometer: one on a body spinning at a constant rate, one from a tilt on a body at rest | the `unit_norm` structure, a vector whose norm is 1, stored as dense; `sin` and `cos` in computational domains | the spinning attitude against `exp(½·ω·t)` at 1 s to 1e-9; the resting filter's tilt against its recurrence in the gain to 1e-12, and its decay per correction against `1 − g`; every attitude's norm 1 to 1e-12 |
+| `conv` | a 3 × 32 × 32 image padded by one, convolved with 8 kernels of 3 × 3, then a bias and a ReLU, in one region | `data<D>` of rank 3 and 4 (`fl::tensor`), row-major; a sliding-window computational domain, `(o, i, j, c, ky, kx)`, whose read of the padded image is affine | the convolution and its output against a direct summation in `long double` to 1e-12; three impulses, one per channel, each returning its channel of every kernel, reversed, exactly |
 
 Each pattern is one header, `workbench/include/branes/anatomy/workbench/patterns/<name>.hpp`, holding its operators, their bindings, its graph, its sources, its run by hand, and its oracle.
 
 ## Running a pattern
 
 ```text
-workbench_run <mlp|kalman|dsp|pid|attitude> [--inputs N] [--seed S] [--trace run.brtrace]
+workbench_run <mlp|kalman|dsp|pid|attitude|conv> [--inputs N] [--seed S] [--trace run.brtrace]
               [--mermaid g.mmd] [--canonical g.txt] [--tolerance-scale K]
 ```
 
@@ -37,7 +38,7 @@ dsp: 12 checks, all passed
   PASS  stop-band tone's attenuation [dB]                64.3031 (at least 40)
 ```
 
-- `--inputs N`: how many inputs the driver hands the stack, counting every source's. Each pattern has its own default, which is what its oracle needs: 100 for the MLP, 22 000 for the Kalman filter (2000 updates), 8224 for the DSP pipeline (32 frames), 1500 for PID control (15 s at 100 Hz), and 3600 for the attitude filter (4 s of four sources).
+- `--inputs N`: how many inputs the driver hands the stack, counting every source's. Each pattern has its own default, which is what its oracle needs: 100 for the MLP, 22 000 for the Kalman filter (2000 updates), 8224 for the DSP pipeline (32 frames), 1500 for PID control (15 s at 100 Hz), 3600 for the attitude filter (4 s of four sources), and 16 for the convolution (3 impulses and 13 images).
 - `--seed S`: the seed that every source and constant is drawn from.
 - `--tolerance-scale K`: multiplies every check's upper tolerance by K. A pattern that still passes at `K = 0.1` has ten times the margin it needs. `K = 0` makes every inexact check fail.
 - The exit code is 0 if every check passes, 1 if one fails, and 2 for a usage error or a file the tool can't write, as `trace_compare`'s is.

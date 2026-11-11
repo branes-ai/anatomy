@@ -200,13 +200,15 @@ Each pattern has a header in `workbench/patterns/`, the interface of `pattern.hp
   - the norm stays 1 to 1e-12 after every firing.
 
 **Convolution (C6).**
-- A 2D convolution of a 3 × 32 × 32 input with 8 kernels of 3 × 3, then a bias and a ReLU, in one region.
-- `data<D>` gains rank 3, row-major.
-- The convolution's space is `(o, y, x, c, ky, kx)`, a sliding window: its read of the input at `(c, y + ky, x + kx)` is affine, and its input face is a window into the padded input.
+- A 2D convolution of a 3 × 32 × 32 input with 8 kernels of 3 × 3, then a bias and a ReLU, in one region. Four operators: `Pad1`, which pads each channel with one zero on each side, `Conv2d`, `BiasAdd` and `Relu`.
+- `data<D>` gains rank 3 and up, dense and row-major, with the last index fastest. `fl::tensor<E, X...>` names such a domain. The kernels are of rank 4, `(o, c, ky, kx)`.
+- The convolution's space is `(o, y, x, c, ky, kx)`, a sliding window: its read of the input at `(c, y + ky, x + kx)` is affine, and its input face is a window into the padded input, so it needs no guard.
+  - The sum runs along `(c, ky, kx)` in that order, as the handler's does, chained through one variable. A point reads the term at `kx − 1` along a kernel's row, the last of the row before at `kx = 0`, and the last of the channel before at a row's start. The last two reads are at a fixed index, so the system is affine.
+  - Its 221 184 points are too many for W12's 20 random orders in a debug build. W11 and W12 run on the same four operators at a small shape, 3 kernels on a 2 × 4 × 5 image, and the pattern's own on one image in the deterministic order. The evaluator now takes the deterministic order's least ready definition from a heap.
 - **Oracle:**
   - direct summation in `long double`, to 1e-12;
-  - an impulse input returns each kernel;
-  - the count is `8·32·32·3·9` multiply-adds.
+  - an impulse input returns each kernel: the first three inputs are impulses, one per channel, and each returns its channel of every kernel, reversed about the impulse, exactly;
+  - the count is `8·32·32·3·9` multiply-adds (W13).
 
 **Stencils (C7).**
 - The 5-point Jacobi step on a 64 × 64 grid, the 7-point step on a 16³ grid, and an explicit heat-equation step. Each is one region per step, with the grid carried through a carried edge.
@@ -327,8 +329,8 @@ To be confirmed in this plan's PR.
 | C2: the MLP's and the Kalman filter's declarations | [#102](https://github.com/branes-ai/anatomy/pull/102) | merged |
 | C3: the DSP pipeline's declarations | [#103](https://github.com/branes-ai/anatomy/pull/103) | merged |
 | C4: carried edges and PID | [#105](https://github.com/branes-ai/anatomy/pull/105) | merged |
-| C5: the attitude filter | [#106](https://github.com/branes-ai/anatomy/pull/106) | open |
-| C6: convolution | | |
+| C5: the attitude filter | [#106](https://github.com/branes-ai/anatomy/pull/106) | merged |
+| C6: convolution | [#107](https://github.com/branes-ai/anatomy/pull/107) | open |
 | C7: stencils | | |
 | C8: SOR/SSOR | | |
 | C9: QR | | |

@@ -1,6 +1,6 @@
 // The computational domains of the MLP's, the Kalman filter's, the DSP
-// pipeline's, PID control's and the attitude filter's handlers
-// (docs/plan/computational-domain, C2 to C5):
+// pipeline's, PID control's, the attitude filter's and the convolution's
+// handlers (docs/plan/computational-domain, C2 to C6):
 //   W10 every declared handler passes K1–K7, and K8 classifies it as stated;
 //   W11 each declaration, evaluated on the values of each of its firings in
 //       the run by hand, gives what its handler gives;
@@ -12,6 +12,7 @@
 #include <branes/anatomy/workbench/evaluate.hpp>
 #include <branes/anatomy/workbench/pattern.hpp>
 #include <branes/anatomy/workbench/patterns/attitude.hpp>
+#include <branes/anatomy/workbench/patterns/conv.hpp>
 #include <branes/anatomy/workbench/patterns/dsp.hpp>
 #include <branes/anatomy/workbench/patterns/kalman.hpp>
 #include <branes/anatomy/workbench/patterns/mlp.hpp>
@@ -63,6 +64,7 @@ struct recorder {
     std::map<std::string, std::size_t> firings;
     std::vector<std::string> problems;
     std::size_t orders = 2;
+    bool random_orders = true;  ///< false: the deterministic order only, for a leaf too large for 20 more
     std::size_t order_mismatches = 0;
 
     template <class Op, fl::fixed_string H, class... In>
@@ -84,7 +86,7 @@ struct recorder {
         }
         // The first firings, and every seventh, so later ones (several fixes) are sampled too.
         const std::size_t nth = firings[who]++;
-        if (nth < orders || nth % 7 == 0) {
+        if (random_orders && (nth < orders || nth % 7 == 0)) {
             using B = typename Op::binding;
             using Hd = fl::handler_t<B, H>;
             const ev::inputs x = ev::inputs_of<Op, H>(op, t, in...);
@@ -470,4 +472,92 @@ TEST_CASE("compute: the attitude filter's declarations give what its handlers gi
     // 1 s: 400 samples of each gyro and 50 of each accelerometer.
     CHECK(rec.firings.at("Attitude_f64.propagate") == 400);
     CHECK(rec.firings.at("AttitudeTilted_f64.correct") == 50);
+}
+
+// ── Convolution ─────────────────────────────────────────────────────
+
+namespace {
+
+namespace cv = wb::conv;
+
+// The pattern's four operators at a small shape, whose declarations the
+// evaluator runs in 20 random orders: 3 kernels on a 2 x 4 x 5 image. One
+// declaration serves every instantiation of its operator.
+using SmallPad = fl::registered<"Pad1_f64_2x4x5", cv::Pad1<double, 2, 4, 5>, cv::Pad1Binding<double, 2, 4, 5>>;
+using SmallConv = fl::
+    registered<"Conv2d_f64_3x2x3x3_4x5", cv::Conv2d<double, 3, 2, 3, 4, 5>, cv::Conv2dBinding<double, 3, 2, 3, 4, 5>>;
+using SmallBias =
+    fl::registered<"BiasAdd_f64_3x4x5", cv::BiasAdd<double, 3, 4, 5>, cv::BiasAddBinding<double, 3, 4, 5>>;
+using SmallRelu = fl::registered<"Relu_f64_3x4x5", cv::Relu<double, 3, 4, 5>, cv::ReluBinding<double, 3, 4, 5>>;
+
+}  // namespace
+
+TEST_CASE("compute: the convolution's handlers pass the checks, and their counts are their closed forms",
+          "[workbench][compute][conv][W10][W13]") {
+    using cd::etype;
+    using cd::op;
+    const auto r = check_all<cv::pattern>();
+    REQUIRE(r.size() == 4);
+    for (const auto& [who, rep] : r) {
+        INFO(who);
+        REQUIRE(rep.stages.size() == 1);
+    }
+    // The window: the reduction reads the last term of a kernel's row, and of a channel, at a fixed index.
+    const cd::report& conv = r.at("Conv2d_f64_8x3x3x3_32x32.apply");
+    CHECK(conv.stages[0] == cd::shape::affine);
+    for (const char* who : {"Pad1_f64_3x32x32.apply", "BiasAdd_f64_8x32x32.apply", "Relu_f64_8x32x32.apply"}) {
+        INFO(who);
+        CHECK(r.at(who).stages[0] == cd::shape::uniform);
+        CHECK(r.at(who).depth == 1);
+    }
+    // 8*32*32*3*9 multiply-adds, and a reduction of C*K*K terms is C*K*K + 2 deep.
+    CHECK(conv.count(op::mul, etype::f64) == cv::multiply_adds);
+    CHECK(conv.count(op::add, etype::f64) == cv::multiply_adds);
+    CHECK(conv.depth == cv::kChannels * cv::kTaps * cv::kTaps + 2);
+    constexpr std::uint64_t maps = cv::kKernels * cv::kSize * cv::kSize;
+    CHECK(r.at("Pad1_f64_3x32x32.apply").counts.empty());
+    CHECK(r.at("BiasAdd_f64_8x32x32.apply").count(op::add, etype::f64) == maps);
+    CHECK(r.at("Relu_f64_8x32x32.apply").count(op::sel_le, etype::f64) == maps);
+}
+
+TEST_CASE("compute: the convolution's declarations give what its handlers give, exactly",
+          "[workbench][compute][conv][W11][W12]") {
+    // A small instantiation, on random kernels and images, in 20 random orders.
+    wb::rng g(wb::substream(7, 0));
+    recorder small;
+    small.orders = 3;
+    for (std::uint64_t i = 0; i < 6; ++i) {
+        cv::kernels<double, 3, 2, 3> w;
+        cv::vec<double, 3> b;
+        cv::tensor3<double, 2, 4, 5> x;
+        for (double& e : w.elements) {
+            e = g.uniform(-1, 1);
+        }
+        for (double& e : b.elements) {
+            e = g.uniform(-1, 1);
+        }
+        for (double& e : x.elements) {
+            e = g.uniform(-1, 1);
+        }
+        (void)cv::chain<SmallPad, SmallConv, SmallBias, SmallRelu>(w, b, x, small);
+    }
+    require_clean(small);
+    REQUIRE(small.worst.size() == 4);
+    for (const auto& [who, d] : small.worst) {
+        INFO(who << ": " << static_cast<double>(d));
+        CHECK(d == 0);
+        CHECK(small.firings.at(who) == 6);
+    }
+
+    // The pattern's own, on an image, in the deterministic order: 221 184 points.
+    const cv::config c;
+    recorder full;
+    full.random_orders = false;
+    (void)cv::hand_run(cv::weights_of(c), cv::input_of(c, cv::kChannels), full);
+    require_clean(full);
+    REQUIRE(full.worst.size() == 4);
+    for (const auto& [who, d] : full.worst) {
+        INFO(who << ": " << static_cast<double>(d));
+        CHECK(d == 0);
+    }
 }
