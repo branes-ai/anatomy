@@ -37,9 +37,9 @@ The graph is described in C++ (`<branes/anatomy/flow/...>`), so the compiler che
 | **input, constant, output** | The graph's external ports. An input is handed messages by a driver, a constant holds a value fixed when the graph is built (weights, taps), and an output is read after a region runs. | `fl::input`, `fl::constant`, `fl::output` |
 | **region and trigger** | A trigger is an input or a clock tick. Its region is the ordered list of firings that run each time the trigger fires. | `g.region(trigger)` |
 | **firing** | One call of a handler, in a region. The order of the `fl::fire` calls is the region's order. | `fl::fire<"handler">(region, node, sources...)` |
-| **edge** | A firing's in port reads an out port of an earlier firing, an input or a constant. An edge between regions needs a **rate rule**: `hold` reads the latest value, and `accumulate<N>` reads a window of the values written since the reader's region last ran. | `fl::hold(x)`, `fl::accumulate<N>(y)` |
+| **edge** | A firing's in port reads an out port of an earlier firing, an input or a constant. An edge between regions needs a **rate rule**: `hold` reads the latest value, and `accumulate<N>` reads a window of the values written since the reader's region last ran. Within a region, a **carried** edge reads what a firing wrote in the region's previous run, which closes a loop. | `fl::hold(x)`, `fl::accumulate<N>(y)`, `fl::carried<M>(region)` closed by `fl::close(region, c, y)` |
 | **composite and body** | A mission fixes its **composites**: named operators with fixed ports, such as an estimator. A scoreboard baseline fills each with a **body**, a graph of its own, but keeps their connections. A research baseline, like every workbench pattern, fires operators directly between the external ports. | `flow/builder.hpp` |
-| **checks** | G1–G9 ([the flow-graph plan](../plan/flow-graph/README.md)). What the types know is checked at compile time, with a `static_assert` naming the invariant: a firing names a handler of its node (G2), gives each in port one source (G3), and joins ports of one domain (G4). The rest is checked as the graph is built, and `build()` returns the first invariant broken, naming the node or firing: within a region, the edges are acyclic and a node's state is updated at most once (G5); each trigger has one region (G6); an edge between regions has a rate rule (G7); a graph has its baseline class's shape (G8). | `flow/builder.hpp`, `flow/graph.hpp` |
+| **checks** | G1–G9 ([the flow-graph plan](../plan/flow-graph/README.md)). What the types know is checked at compile time, with a `static_assert` naming the invariant: a firing names a handler of its node (G2), gives each in port one source (G3), and joins ports of one domain (G4). The rest is checked as the graph is built, and `build()` returns the first invariant broken, naming the node or firing: within a region, the edges are acyclic and a node's state is updated at most once (G5); each trigger has one region (G6); an edge between regions has a rate rule, and a carried edge stays within its region (G7); a graph has its baseline class's shape (G8). | `flow/builder.hpp`, `flow/graph.hpp` |
 | **canonical form and hash** | The checked graph as text, one line per instance, region, firing, edge and output. Its hash identifies the graph. | `flow::canonical`, `flow::mermaid` |
 | **computational domain** | What a handler computes, point by point: an index space, equations over it, and where its ports and state enter and leave. It is declared beside the handler and checked (K1–K8). | `flow/compute.hpp` |
 
@@ -238,11 +238,10 @@ It has an index space `(i, j)` bound from the port `w`'s extents, a running sum 
 
 ## 8. The patterns still to come
 
-[ADR 0005](../adr/0005-application-tier.md) lists nine patterns. Three run today. Each of the other six lands with the feature of the machinery it exercises:
+[ADR 0005](../adr/0005-application-tier.md) lists nine patterns. Four run today: the three above, and PID control (`workbench_run pid`), which landed with the **carried edge**, a loop closed from one run of a region to the next. Each of the other five lands with the feature of the machinery it exercises:
 
 | Pattern | Step | The feature it lands with |
 |---|---|---|
-| PID control | C4 | a **carried edge**: a loop closed from one firing of a region to the next |
 | attitude filter | C5 | a **unit-norm** quaternion domain |
 | convolution | C6 | **rank-3** domains, and a sliding-window computational domain |
 | stencils | C7 | the **halo** of a divided computational domain |

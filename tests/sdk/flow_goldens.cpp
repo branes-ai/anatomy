@@ -1,8 +1,9 @@
 // The graphs' canonical forms, against goldens recorded before the
-// `accumulate` rate rule (docs/plan/workbench, B2, property W9): the hash of
-// the canonical form of each of the test mission's graphs, and of 200
-// generated graphs drawn without `accumulate`, equals the hash main had. A
-// change to canonical() that touches a graph without an `accumulate` edge
+// `accumulate` rate rule (docs/plan/workbench, B2, property W9) and kept
+// through the `carried` one (docs/plan/computational-domain, C4, W18): the
+// hash of the canonical form of each of the test mission's graphs, and of 200
+// generated graphs drawn without `accumulate` or `carried`, equals the hash
+// main had. A change to canonical() that touches a graph without either edge
 // changes one of them.
 //
 // The goldens are tests/fixtures/flow/goldens/canonical.txt. To record them
@@ -69,7 +70,7 @@ std::string goldens() {
     o << "test.research " << hash_of(fl::baseline_class::research, [](fl::builder& g) { (void)test::research(g); })
       << "\n";
     for (std::uint64_t seed = 1; seed <= kSeeds; ++seed) {
-        const auto b = gen::build(gen::generate(seed, gen::Draw{.accumulate = false}));
+        const auto b = gen::build(gen::generate(seed, gen::Draw{.accumulate = false, .carried = false}));
         if (!b) {
             FAIL("seed " << seed << " doesn't build: " << b.error().to_string());
         }
@@ -80,7 +81,8 @@ std::string goldens() {
 
 }  // namespace
 
-TEST_CASE("flow goldens: every graph without accumulate keeps main's canonical form (W9)", "[flow][goldens]") {
+TEST_CASE("flow goldens: every graph without accumulate or carried keeps main's canonical form (W9, W18)",
+          "[flow][goldens]") {
     const std::string now = goldens();
     if (write_goldens()) {
         std::filesystem::create_directories(kGoldens.parent_path());

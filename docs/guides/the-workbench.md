@@ -11,13 +11,14 @@ It is in `workbench/` and builds the library `branes::anatomy_workbench` and the
 | `mlp` | `y = W₂·tanh(W₁·x + b₁) + b₂`, 16 → 32 → 8; layer 1 in `f32`, layer 2 in `f64` | shaped `data<D>` on edges, constants with values, an element type per edge | the output against `long double` to 1e-5; layer 2, given layer 1's output, to 1e-12 |
 | `kalman` | constant velocity in the plane; predict on a 100 Hz clock, update in Joseph form on 10 Hz fixes; in `f64` and `f32` | a symmetric covariance in a packed `data<D>`; one operator's state updated in two regions at shared times; arithmetic in MTL5 through `workbench/mtl5.hpp` | `P` positive definite after every firing; the Riccati steady state to 1e-9; the NEES within its 95 % bounds; `f32` against `f64` to 1e-4 |
 | `dsp` | at 8192 Hz, a band-pass FIR per sample, then per frame of 256: `accumulate<256>`, a Hann window, a radix-2 FFT and a magnitude | the `accumulate` rate rule; complex elements | full windows; the FIR and the spectrum against `long double` (a direct DFT) and Parseval, to 1e-12; the tones' bins, and their magnitudes against `A·\|H(f)\|·Σw/2` to 1 %; 40 dB of stop band |
+| `pid` | on a 100 Hz clock, three loops of a controller (P, PI and PID) and a first-order plant `y' = (K·u − y)/τ`, discretized exactly, toward a step setpoint | the `carried` edge, which closes a loop within a region: each controller reads its plant's output from the previous tick | the P loop against its closed form to 1e-12; the PI and PID loops' errors below 1e-9 after 20 time constants; the PI loop's overshoot against its poles' modal form to 1 % |
 
 Each pattern is one header, `workbench/include/branes/anatomy/workbench/patterns/<name>.hpp`, holding its operators, their bindings, its graph, its sources, its run by hand, and its oracle.
 
 ## Running a pattern
 
 ```text
-workbench_run <mlp|kalman|dsp> [--inputs N] [--seed S] [--trace run.brtrace]
+workbench_run <mlp|kalman|dsp|pid> [--inputs N] [--seed S] [--trace run.brtrace]
               [--mermaid g.mmd] [--canonical g.txt] [--tolerance-scale K]
 ```
 
@@ -35,7 +36,7 @@ dsp: 12 checks, all passed
   PASS  stop-band tone's attenuation [dB]                64.3031 (at least 40)
 ```
 
-- `--inputs N`: how many inputs the driver hands the stack, counting every source's. Each pattern has its own default, which is what its oracle needs: 100 for the MLP, 22 000 for the Kalman filter (2000 updates), and 8224 for the DSP pipeline (32 frames).
+- `--inputs N`: how many inputs the driver hands the stack, counting every source's. Each pattern has its own default, which is what its oracle needs: 100 for the MLP, 22 000 for the Kalman filter (2000 updates), 8224 for the DSP pipeline (32 frames), and 1500 for PID control (15 s at 100 Hz).
 - `--seed S`: the seed that every source and constant is drawn from.
 - `--tolerance-scale K`: multiplies every check's upper tolerance by K. A pattern that still passes at `K = 0.1` has ten times the margin it needs. `K = 0` makes every inexact check fail.
 - The exit code is 0 if every check passes, 1 if one fails, and 2 for a usage error or a file the tool can't write, as `trace_compare`'s is.

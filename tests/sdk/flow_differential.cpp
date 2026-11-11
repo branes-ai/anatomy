@@ -1,10 +1,12 @@
 // The flow graph's differential tests (docs/plan/flow-testing, T1): random
 // graphs of toy operators, run by the CPU stack (flow::stack) and by the
 // reference interpreter, which must agree on every output after every input
-// (P1, P2), accumulate edges among them (docs/plan/workbench, W6); a hold
+// (P1, P2), accumulate edges among them (docs/plan/workbench, W6) and carried
+// edges (docs/plan/computational-domain, C4, W14); a hold
 // before its first write (P4); a read of state before and after its update
 // (P5); and a running stack that allocates nothing (P9, W8).
-// tests/sdk/flow_accumulate.cpp tests the windows themselves.
+// tests/sdk/flow_accumulate.cpp tests the windows themselves, and
+// tests/sdk/flow_carried.cpp the carried edges.
 //
 // ANATOMY_FLOW_SEEDS sets how many seeds the differential test runs: 500 by
 // default, more for a longer run, which CI doesn't make.
@@ -98,6 +100,8 @@ TEST_CASE("flow differential: the stack runs what the graph says", "[flow][diffe
     std::size_t holds = 0;
     std::size_t projections = 0;
     std::size_t accumulates = 0;
+    std::size_t carried = 0;
+    std::size_t loops = 0;  ///< carried edges from the reader's own firing or a later one
     std::vector<std::size_t> kinds(gen::kAllKinds, 0);
     for (std::uint64_t seed = 1; seed <= n; ++seed) {
         const gen::Recipe r = gen::generate(seed);
@@ -111,23 +115,29 @@ TEST_CASE("flow differential: the stack runs what the graph says", "[flow][diffe
             ++kinds[static_cast<std::size_t>(node.kind)];
             bodies += node.body ? 1 : 0;
         }
-        for (const gen::FiringSpec& f : r.firings) {
-            for (const SourceSpec& s : f.in) {
+        for (std::size_t i = 0; i < r.firings.size(); ++i) {
+            for (const SourceSpec& s : r.firings[i].in) {
                 holds += s.hold ? 1 : 0;
                 projections += s.field >= 0 ? 1 : 0;
                 accumulates += s.accumulate > 0 ? 1 : 0;
+                carried += s.carried ? 1 : 0;
+                loops += s.carried && s.index >= i ? 1 : 0;
             }
         }
     }
-    // What the seeds covered: both classes, every kind, bodies, holds, projections and accumulates.
+    // What the seeds covered: both classes, every kind, bodies, holds,
+    // projections, accumulates, and carried edges, some closing a loop.
     INFO("seeds " << n << ": " << scoreboard << " scoreboard, " << bodies << " bodies, " << holds << " holds, "
-                  << projections << " projections, " << accumulates << " accumulates");
+                  << projections << " projections, " << accumulates << " accumulates, " << carried << " carried, "
+                  << loops << " loops");
     CHECK(scoreboard > 0);
     CHECK(scoreboard < n);
     CHECK(bodies > 0);
     CHECK(holds > 0);
     CHECK(projections > 0);
     CHECK(accumulates > 0);
+    CHECK(carried > 0);
+    CHECK(loops > 0);
     for (std::size_t k = 0; k < gen::kAllKinds; ++k) {
         INFO(gen::kind_name(static_cast<gen::Kind>(k)));
         // Acc is the mutations' only.
@@ -198,13 +208,15 @@ TEST_CASE("flow differential: P5 a read before an update sees the last state, on
 
 TEST_CASE("flow differential: P9 a running stack allocates nothing", "[flow][differential]") {
     // Seeds whose graphs are of several nodes; every toy message is of fixed
-    // size, and so is every window (W8).
+    // size, and so is every window and every carried edge's slot (W8).
     std::size_t accumulates = 0;
+    std::size_t carried = 0;
     for (std::uint64_t seed = 1; seed <= 20; ++seed) {
         const gen::Recipe r = gen::generate(seed);
         for (const gen::FiringSpec& f : r.firings) {
             for (const SourceSpec& s : f.in) {
                 accumulates += s.accumulate > 0 ? 1 : 0;
+                carried += s.carried ? 1 : 0;
             }
         }
         auto b = gen::build(r);
@@ -222,4 +234,5 @@ TEST_CASE("flow differential: P9 a running stack allocates nothing", "[flow][dif
         CHECK(made == 0);
     }
     CHECK(accumulates > 0);
+    CHECK(carried > 0);
 }

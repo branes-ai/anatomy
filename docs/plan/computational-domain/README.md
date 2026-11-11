@@ -144,13 +144,17 @@ These are derived from a checked declaration, and each is checked against a clos
 The PID pattern closes a loop: the controller reads the plant's output from the previous tick, and the plant reads the controller's command from this one. The model's section 6 calls the edge that closes it a **carried edge**: from an output in one firing of a region to an input of the next firing of the same region. Today a `Ref` names an earlier firing of its own region, or a firing of another region through a rate rule, so a cycle can't be written.
 
 ```cpp
-auto [u] = flow::fire<"step">(tick, pid, setpoint, flow::carried(y));  // y from the last tick
-auto [y] = flow::fire<"step">(tick, plant, u);
+const auto y_last = flow::carried<Scalar>(region);  // y from the last tick
+auto [u] = flow::fire<"step">(region, pid, setpoint, y_last);
+auto [y] = flow::fire<"step">(region, plant, u);
+flow::close(region, y_last, y);
 ```
+
+The edge is made before its producer fires, since C++ can't name `y` before it is declared, and closed once it has. Its readers' `Ref`s name the producer then. `build()` refuses an edge that is never closed, or closed twice.
 
 - **What the reader reads:** the value its producer wrote in the region's previous firing. Before the first firing, it reads the message value-initialized, as a `hold` does (flow-testing, P4).
 - **In the graph:** `rate_rule::carried`. `canonical()` writes ` carried` where it writes ` hold`, so the form and hash of a graph without a carried edge are unchanged (W18). `mermaid()` draws the edge dotted and backward, labelled `carried`.
-- **G7** reads: an edge between regions has a rate rule, `hold` or `accumulate`; an edge within a region has none, or `carried`; an edge from a constant or an input has none. A carried edge may name its own firing or a later one, which is what lets it close a cycle. Every cycle crosses a carried edge, because every other `Ref` of a region names an earlier firing.
+- **G7** reads: an edge between regions has a rate rule, `hold` or `accumulate`; an edge within a region has none, or `carried`; an edge from a constant or an input has none. A carried edge may name any firing of its region: an earlier one, whose value it delays by a run, or its own or a later one, which is what lets it close a cycle. Every cycle crosses a carried edge, because every other `Ref` of a region names an earlier firing.
 - **The stack** keeps one slot per carried edge, written at the end of the region's firing. The reference interpreter, the generator and the mutations of the flow tests gain carried edges (W14).
 
 A carried edge isn't an operator's state. The PID's integrator and last error are its state, declared and carried inside it as the FIR's delay line is. The carried edge is the loop between two operators, which the graph can see.
@@ -315,8 +319,8 @@ To be confirmed in this plan's PR.
 | C0: this plan | [#99](https://github.com/branes-ai/anatomy/pull/99) | merged |
 | C1: the computational domain and its checks | [#100](https://github.com/branes-ai/anatomy/pull/100) | merged |
 | C2: the MLP's and the Kalman filter's declarations | [#102](https://github.com/branes-ai/anatomy/pull/102) | merged |
-| C3: the DSP pipeline's declarations | [#103](https://github.com/branes-ai/anatomy/pull/103) | open |
-| C4: carried edges and PID | | |
+| C3: the DSP pipeline's declarations | [#103](https://github.com/branes-ai/anatomy/pull/103) | merged |
+| C4: carried edges and PID | [#105](https://github.com/branes-ai/anatomy/pull/105) | open |
 | C5: the attitude filter | | |
 | C6: convolution | | |
 | C7: stencils | | |

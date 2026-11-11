@@ -12,6 +12,11 @@
 // how many came before them; then the list empties. The stack's accumulator
 // is a ring of N, so the two agree only if both keep the latest N in order.
 //
+// A carried edge (docs/plan/computational-domain, C4) reads, as its region
+// begins, its producer's latest value: the one it wrote in the region's last
+// run, or value-initialized before the first. The stack copies it into a slot
+// of its own as the region's run ends instead.
+//
 // What it is given is property P2: the Graph, and the constants' values,
 // which the Graph doesn't hold. A region's trigger is its input's name, as
 // it is for an input declared with no trigger of its own: the Graph names
@@ -204,6 +209,15 @@ private:
             acc.latched = Win{std::vector<Val>(first, acc.pending.end()), acc.pending.size() - n};
             acc.pending.clear();
         }
+        // Each carried edge's value, as the region's last run left it.
+        std::map<std::pair<std::size_t, std::size_t>, Val> carried;  // (firing, in port)
+        for (std::size_t i = 0; i < region.firings.size(); ++i) {
+            for (std::size_t k = 0; k < region.firings[i].in.size(); ++k) {
+                if (region.firings[i].in[k].rate == fl::rate_rule::carried) {
+                    carried[{i, k}] = as_val(resolve(region.firings[i].in[k]));
+                }
+            }
+        }
         for (std::size_t i = 0; i < region.firings.size(); ++i) {
             const fl::Firing& f = region.firings[i];
             std::vector<Val> in;
@@ -211,6 +225,8 @@ private:
             for (std::size_t k = 0; k < f.in.size(); ++k) {
                 if (f.in[k].rate == fl::rate_rule::accumulate) {
                     windows.push_back(accs_.at(Key{region.trigger, i, std::to_string(k)}).latched);
+                } else if (f.in[k].rate == fl::rate_rule::carried) {
+                    in.push_back(carried.at({i, k}));
                 } else {
                     in.push_back(as_val(resolve(f.in[k])));
                 }

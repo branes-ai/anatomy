@@ -59,6 +59,13 @@ inline void renumber(std::vector<SourceSpec>& in, const std::vector<std::size_t>
     out.nodes.clear();
     out.firings.clear();
 
+    // Where each firing goes, first: a carried edge may read a later one.
+    std::size_t next = 0;
+    for (const FiringSpec& f : r.firings) {
+        next += r.nodes[f.node].body ? 2 : 1;
+        t.moved.push_back(next - 1);
+    }
+
     // Each node's instances: one, or a body's two.
     std::vector<std::pair<std::size_t, std::size_t>> of(r.nodes.size());
     for (std::size_t n = 0; n < r.nodes.size(); ++n) {
@@ -93,7 +100,6 @@ inline void renumber(std::vector<SourceSpec>& in, const std::vector<std::size_t>
                 out.firings.push_back(FiringSpec{last, 0, f.region, {inner, in[1]}});
             }
         }
-        t.moved.push_back(out.firings.size() - 1);
     }
     return t;
 }
@@ -111,10 +117,11 @@ inline void renumber(std::vector<SourceSpec>& in, const std::vector<std::size_t>
     return t;
 }
 
-/// Whether firing j reads any out port of firing i.
+/// Whether firing j reads any out port of firing i in the same run: a
+/// carried edge reads the last run's, whichever of the two fires first.
 [[nodiscard]] inline bool reads(const Recipe& r, std::size_t j, std::size_t i) {
     for (const SourceSpec& s : r.firings[j].in) {
-        if (s.from == From::firing && s.index == i) {
+        if (s.from == From::firing && s.index == i && !s.carried) {
             return true;
         }
     }

@@ -359,6 +359,14 @@ template <class M, std::size_t N>
 inline constexpr accumulator_ops accumulator_ops_v{
     &ring<M, N>::make, &ring<M, N>::make_window, &ring<M, N>::push, &ring<M, N>::latch};
 
+/// A carried edge's copy, as its region's run ends. Pre: `dst` and `src` are Ms.
+using copy_fn = void (*)(void* dst, const void* src);
+
+template <class M>
+void copy_of(void* dst, const void* src) {
+    *static_cast<M*>(dst) = *static_cast<const M*>(src);
+}
+
 /// What a value is, untyped: where the graph reads it from (Ref), where the
 /// stack keeps it (a slot), and the projections taken from it.
 struct source {
@@ -367,6 +375,8 @@ struct source {
     std::vector<access_fn> access;  ///< outermost first, one per ref.path entry
     /// An accumulate edge's accumulator, if it carries a message type; else null.
     const accumulator_ops* accumulator = nullptr;
+    /// A carried edge's index in its builder, for a reader of one; else no_slot.
+    std::size_t carried = no_slot;
 };
 }  // namespace detail
 
@@ -410,6 +420,16 @@ struct held : detail::source {
 template <class X, std::size_t N>
 struct accumulated : detail::source {
     using type = window_t<X, N>;
+};
+
+/// A value read in its own region as its producer wrote it in the region's
+/// previous run, or the message value-initialized before the first: a
+/// carried edge, which closes a loop (docs/plan/computational-domain, C4).
+/// carried<X>(s) makes one, before its producer fires; close(s, c, v) names
+/// its producer, v, once it has fired.
+template <class X>
+struct carried_value : detail::source {
+    using type = X;
 };
 
 /// The input whose time a time handler takes.
@@ -485,6 +505,8 @@ template <class X>
 X source_type(const held<X>&);
 template <class X, std::size_t N>
 window_t<X, N> source_type(const accumulated<X, N>&);
+template <class X>
+X source_type(const carried_value<X>&);
 
 template <class S>
 concept source_like = requires(const S& s) { source_type(s); };
@@ -804,6 +826,11 @@ public:
     void
     set_operator(std::size_t node, result<std::shared_ptr<void>, std::string> op, std::vector<detail::thunk_fn> thunks);
     void add_body_handler(std::size_t composite, std::string_view handler, body_handler fn);
+    /// A carried edge of `s`'s region: its slot, value-initialized, and its
+    /// copy, both null for a domain.
+    [[nodiscard]] detail::source add_carried(scope& s, std::shared_ptr<void> slot, detail::copy_fn copy);
+    /// Carried edge `carried`'s producer is `from`.
+    void close_carried(scope& s, std::size_t carried, const detail::source& from);
     void end_body(std::size_t composite);
     [[nodiscard]] std::vector<detail::source> fire(scope& s,
                                                    std::size_t node,
@@ -871,6 +898,18 @@ private:
         const detail::accumulator_ops* ops = nullptr;
     };
 
+    /// A carried edge: its region, its slot and copy, and its producer once
+    /// it is closed; until then, where it is read, as (region, firing, port).
+    struct carried_rec {
+        std::size_t region = 0;
+        std::size_t slot = detail::no_slot;
+        detail::copy_fn copy = nullptr;
+        bool closed = false;
+        detail::source from;
+        std::vector<std::array<std::size_t, 3>> readers;
+    };
+    [[nodiscard]] std::string carried_key(const carried_rec& c) const;
+
     Graph graph_;
     bool runs_ = false;     ///< a stack_builder's: the graph is also run
     bool stacked_ = false;  ///< build_stack() has taken the operators and slots
@@ -885,6 +924,7 @@ private:
     std::vector<std::shared_ptr<void>> operators_;   ///< per instance
     std::vector<std::vector<firing_rec>> runs_of_;   ///< per region, its firings, to run
     std::vector<accumulator_rec> accumulators_;      ///< one per accumulate edge
+    std::vector<carried_rec> carried_;               ///< one per carried edge
     std::optional<config::ConfigError> error_;
 };
 
@@ -944,6 +984,10 @@ void build_operator(G& g, std::size_t n) {
 /// reader reads, and empties the accumulator, so every firing of the region
 /// reads one window. Before the producer first writes, the window is empty.
 ///
+/// A carried edge has a slot of its own, value-initialized, into which the
+/// stack copies its producer's value as its region's run ends: every firing
+/// of the next run reads it.
+///
 /// An observer, if it is given one, is called after each firing with what the
 /// firing wrote (docs/plan/flow-testing, T4: flow/trace.hpp writes it to a
 /// trace). With none, the stack runs as it does without: one test per firing.
@@ -1002,6 +1046,12 @@ private:
         void* acc = nullptr;
         void* window = nullptr;
     };
+    /// A carried edge's copy, as its region's run ends.
+    struct carry {
+        detail::copy_fn fn = nullptr;
+        void* dst = nullptr;
+        const void* src = nullptr;
+    };
     struct firing {
         detail::thunk_fn thunk = nullptr;
         void* op = nullptr;
@@ -1036,12 +1086,16 @@ private:
                 observer_(fired{region, i, now, f.ports, f.types, f.out});
             }
         }
+        for (const carry& c : carries_[region]) {
+            c.fn(c.dst, c.src);
+        }
     }
 
     std::vector<std::shared_ptr<void>> slots_;
     std::vector<std::shared_ptr<void>> operators_;
     std::vector<std::vector<firing>> regions_;
     std::vector<std::vector<latch>> latches_;  ///< per region, the windows it reads
+    std::vector<std::vector<carry>> carries_;  ///< per region, its carried edges
     std::vector<input_rec> inputs_;
     std::vector<const void*> outputs_;
     Graph graph_;
@@ -1072,6 +1126,29 @@ template <class M>
 template <class M, class N>
 [[nodiscard]] output_port<M> output(builder& g, std::string name, const input_port<N>& trigger) {
     return output_port<M>{g.add_output(std::move(name), trigger.ref)};
+}
+
+/// A carried edge of `s`'s region, of message type (or domain) X: what its
+/// readers read before its producer fires. Close it with close(s, c, v).
+template <class X>
+[[nodiscard]] carried_value<X> carried(scope& s) {
+    static_assert(is_port_data_v<X>, "a value holds a message type with a domain, a domain or a record");
+    std::shared_ptr<void> slot;
+    detail::copy_fn copy = nullptr;
+    if constexpr (!is_data_v<X>) {
+        slot = std::make_shared<X>();
+        copy = &detail::copy_of<X>;
+    }
+    return carried_value<X>{s.owner().add_carried(s, std::move(slot), copy)};
+}
+
+/// Carried edge `c` carries `v`, an out port of a firing of its own region
+/// (G7), to the region's next run.
+template <class X, class Y>
+void close(scope& s, const carried_value<X>& c, const value<Y>& v) {
+    static_assert(std::is_same_v<data_t<X>, data_t<Y>> && detail::same_message_v<X, Y>,
+                  "G4: every edge joins two ports of the same domain, and of one message type");
+    s.owner().close_carried(s, c.carried, v);
 }
 
 /// What a body of several operators is given to describe itself.
@@ -1150,7 +1227,8 @@ template <class H, class B, class... S>
     using in_types = typename port_values<sig, typename H::in>::type;
     using out_types = typename port_values<sig, typename H::out>::type;
     static_assert((source_like<S> && ...),
-                  "G3: a source is a value, an input, a constant, or hold(...) or accumulate<N>(...) of one");
+                  "G3: a source is a value, an input, a constant, hold(...) or accumulate<N>(...) of one, or "
+                  "carried<X>(scope)");
     static_assert(sizeof...(S) == H::in::size, "G3: every in port of the handler has one source");
     static_assert(edges_match<in_types, S...>(), "G4: every edge joins two ports of the same domain");
     static_assert(messages_match<in_types, S...>(),

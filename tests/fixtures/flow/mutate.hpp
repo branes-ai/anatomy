@@ -203,8 +203,9 @@ template <class F>
     }
     {
         Recipe r = valid;
-        auto at = find_source(
-            r, [](const SourceSpec& s) { return !s.hold && s.accumulate == 0 && s.from != From::constant; });
+        auto at = find_source(r, [](const SourceSpec& s) {
+            return !s.hold && s.accumulate == 0 && !s.carried && s.from != From::constant;
+        });
         if (!at) {
             at = std::pair{add_firing(r, add_node(r, "nw", Kind::unary), 0, {{From::input, 0, 0, -1, false}}),
                            std::size_t{0}};
@@ -241,6 +242,26 @@ template <class F>
         k.accumulate = toys::kFoldCapacity[1];
         const std::size_t i = add_firing(r, add_node(r, "nfk", Kind::fold), 0, {k});
         add("G7 an accumulate edge from a constant", r, "G7", port_key(r, {i, 0}));
+    }
+    {
+        // A carried edge from input 0, in input 0's region (C4).
+        Recipe r = valid;
+        SourceSpec in0{From::input, 0, 0, -1, false};
+        in0.carried = true;
+        const std::size_t i = add_firing(r, add_node(r, "nci", Kind::unary), 0, {in0});
+        add("G7 a carried edge from an input", r, "G7", port_key(r, {i, 0}));
+    }
+    {
+        // A carried edge in input 0's region, from a firing of a region of its own (C4).
+        Recipe r = valid;
+        r.inputs.push_back(gen::InputSpec{"inr", false, true});
+        const std::size_t other = r.inputs.size() - 1;
+        r.firings.push_back(
+            FiringSpec{add_node(r, "ncp", Kind::unary), 0, other, {{From::input, other, 0, -1, false}}});
+        SourceSpec from{From::firing, r.firings.size() - 1, 0, -1, false};
+        from.carried = true;
+        const std::size_t i = add_firing(r, add_node(r, "ncr", Kind::unary), 0, {from});
+        add("G7 a carried edge from another region", r, "G7", port_key(r, {i, 0}));
     }
 
     // G8: what a graph's class holds.
