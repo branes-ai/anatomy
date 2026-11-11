@@ -2,7 +2,7 @@
 /// @file data.hpp
 /// @brief The value of a domain: its elements, stored by its structure, and
 /// the count of a bounded leading extent (anatomy docs/adr/0005, step 1;
-/// docs/plan/workbench, B1).
+/// docs/plan/workbench, B1; rank 3 and up, docs/plan/computational-domain, C6).
 ///
 /// A message of type data<D> is its own domain (domain_of<data<D>> is D), so
 /// a port that carries it joins only a port of the same shape, structure and
@@ -10,17 +10,20 @@
 /// holds nothing on the heap.
 ///
 /// Model:
-///   D                 : a domain of rank 0, 1 or 2 whose element type E is
-///                       arithmetic, complex, an enumeration or Timestamp
+///   D                 : a domain of any rank whose element type E is
+///                       arithmetic, complex, an enumeration or Timestamp. Of
+///                       rank 3 or more it is dense (D2)
 ///   elements          : stored_elements_v<D> values of E, laid out by D's structure:
-///                         dense            row-major
+///                         dense            row-major, at any rank: the last
+///                                          index varies fastest
 ///                         symmetric        the upper triangle, row by row
 ///                         upper_triangular the upper triangle, row by row
 ///                         lower_triangular the lower triangle, row by row
 ///                         diagonal         the diagonal
 ///                         unit_norm        as dense: a vector, in order
 ///   count()           : the rows in use. A bounded leading extent's count, in
-///                       [0, its bound]; a static leading extent's size; 1 for a scalar
+///                       [0, its bound]; a static leading extent's size; 1 for a scalar.
+///                       A row is every element of one leading index: row_size of them
 ///
 /// Invariants:
 ///   A1: 0 <= count() <= the leading extent's size or bound; a static leading
@@ -40,6 +43,8 @@
 ///                           false and nothing changes. Rows beyond n are reset to E{} (A2).
 ///   operator()(i[, j])    — Pre: i < count(), j < the column extent; for a triangular or
 ///                           diagonal domain, (i, j) is inside its structure. Post: the element.
+///   operator()(i, j, k…)  — Of rank 3 or more. Pre: i < count(), and every other index is
+///                           below its extent. Post: the element at index(i, j, k…).
 ///   at(i[, j]) const      — Pre: i < count(), j < the column extent. Post: the element, or
 ///                           E{} outside a triangle or a diagonal.
 ///   structure_holds()     — Post: for a unit-norm vector, whether A4 holds; else true.
@@ -48,6 +53,7 @@
 
 #include <array>
 #include <cassert>
+#include <concepts>
 #include <cstddef>
 #include <limits>
 #include <tuple>
@@ -75,6 +81,31 @@ inline constexpr std::size_t size_of_extent = [] {
     }
 }();
 
+/// A domain's extents: each one's size or bound, whether one after the
+/// leading one is bounded, and the product of the sizes after the leading one.
+template <class Tuple>
+struct extents_of;
+template <class... X>
+struct extents_of<std::tuple<X...>> {
+    static constexpr std::array<std::size_t, sizeof...(X)> sizes{X::size...};
+    static constexpr std::array<bool, sizeof...(X)> bounded{X::is_bounded...};
+    static constexpr bool trailing_bounded = [] {
+        for (std::size_t k = 1; k < sizeof...(X); ++k) {
+            if (bounded[k]) {
+                return true;
+            }
+        }
+        return false;
+    }();
+    static constexpr std::size_t row_size = [] {
+        std::size_t n = 1;
+        for (std::size_t k = 1; k < sizeof...(X); ++k) {
+            n *= sizes[k];
+        }
+        return n;
+    }();
+};
+
 template <class X>
 inline constexpr bool extent_is_bounded = [] {
     if constexpr (std::is_void_v<X>) {
@@ -91,17 +122,17 @@ inline constexpr bool extent_is_bounded = [] {
 template <class E>
 inline constexpr E unit_norm_tolerance = E{256} * std::numeric_limits<E>::epsilon();
 
-/// The value of domain D (rank 0, 1 or 2).
+/// The value of domain D.
 template <class D>
 class data {
     static_assert(is_domain_v<D>, "data: D is a domain");
-    static_assert(D::rank <= 2, "data: a domain of rank 0, 1 or 2");
     static_assert(!is_record_v<typename D::element_type>,
                   "data: a record's element type has no C++ type to store; a record message stays a struct");
 
     using row_extent = typename detail::extent_or_none<typename D::extents, 0>::type;
     using col_extent = typename detail::extent_or_none<typename D::extents, 1>::type;
-    static_assert(!detail::extent_is_bounded<col_extent>, "data: only the leading extent may be bounded");
+    static_assert(!detail::extents_of<typename D::extents>::trailing_bounded,
+                  "data: only the leading extent may be bounded");
     static_assert(D::kind == structure::dense || !detail::extent_is_bounded<row_extent>,
                   "data: a structured domain's extents are static");
 
@@ -114,6 +145,12 @@ public:
     static constexpr std::size_t max_rows = detail::size_of_extent<row_extent>;
     /// The column extent's size; 1 below rank 2.
     static constexpr std::size_t cols = detail::size_of_extent<col_extent>;
+    /// The elements of one row: the product of the extents after the leading
+    /// one. It is cols at rank 2, and 1 below it. Only a dense domain stores
+    /// its rows whole, so only a dense domain's rows are row_size apart.
+    static constexpr std::size_t row_size = detail::extents_of<typename D::extents>::row_size;
+    /// Each extent's size or bound, leading first.
+    static constexpr std::array<std::size_t, rank> sizes = detail::extents_of<typename D::extents>::sizes;
     static constexpr bool bounded = detail::extent_is_bounded<row_extent>;
     static constexpr std::size_t stored = stored_elements_v<D>;
 
@@ -133,8 +170,8 @@ public:
                 return false;
             }
             // Every row past n, which A2 already holds past count_: a bound
-            // the compiler can see, which a loop to count_ * cols is not.
-            for (std::size_t k = n * cols; k < stored; ++k) {
+            // the compiler can see, which a loop to count_ * row_size is not.
+            for (std::size_t k = n * row_size; k < stored; ++k) {
                 elements[k] = element_type{};
             }
             count_ = n;
@@ -185,6 +222,35 @@ public:
         assert(i < count_ && j < cols);
         assert(inside(i, j));
         return elements[index(i, j)];
+    }
+
+    /// Element (i, j, k, …) of a domain of rank 3 or more, row-major. Pre: i <
+    /// count(), and every other index is below its extent.
+    template <std::integral... I>
+        requires(rank >= 3 && sizeof...(I) == rank)
+    [[nodiscard]] constexpr element_type& operator()(I... ix) noexcept {
+        assert(static_cast<std::size_t>(first(ix...)) < count_);
+        return elements[index(ix...)];
+    }
+    template <std::integral... I>
+        requires(rank >= 3 && sizeof...(I) == rank)
+    [[nodiscard]] constexpr const element_type& operator()(I... ix) const noexcept {
+        assert(static_cast<std::size_t>(first(ix...)) < count_);
+        return elements[index(ix...)];
+    }
+
+    /// The position of (i, j, k, …) in `elements`, row-major: the last index
+    /// varies fastest. Pre: every index is below its extent's size or bound.
+    template <std::integral... I>
+        requires(rank >= 3 && sizeof...(I) == rank)
+    [[nodiscard]] static constexpr std::size_t index(I... ix) noexcept {
+        const std::array<std::size_t, rank> at{static_cast<std::size_t>(ix)...};
+        std::size_t e = 0;
+        for (std::size_t k = 0; k < rank; ++k) {
+            assert(at[k] < sizes[k]);
+            e = e * sizes[k] + at[k];
+        }
+        return e;
     }
 
     /// Element (i, j), or a value-initialized element outside a triangle or a
@@ -250,6 +316,11 @@ public:
     friend constexpr bool operator==(const data&, const data&) = default;
 
 private:
+    template <class I, class... Rest>
+    [[nodiscard]] static constexpr I first(I i, Rest...) noexcept {
+        return i;
+    }
+
     /// Every element value-initialized, but a unit-norm vector's first (A4).
     [[nodiscard]] static constexpr std::array<element_type, stored> initial() noexcept {
         std::array<element_type, stored> e{};

@@ -28,8 +28,8 @@ The graph is described in C++ (`<branes/anatomy/flow/...>`), so the compiler che
 
 | Term | What it is | Where |
 |---|---|---|
-| **domain** | An index set with an element type and a structure: `scalar<double>`, `vector<float, dim<16>>`, `matrix<double, dim<4>, dim<4>, structure::symmetric>`, `vector<double, dim<4>, structure::unit_norm>` (a quaternion), `vector<double, bounded<256>>` (with a count). A `record` groups fields. | `flow/domain.hpp` |
-| **`data<D>`** | The value of a domain, stored as its structure says: a symmetric matrix stores only its upper triangle, and a unit-norm vector is stored as dense, with its norm 1. | `flow/data.hpp` |
+| **domain** | An index set with an element type and a structure: `scalar<double>`, `vector<float, dim<16>>`, `matrix<double, dim<4>, dim<4>, structure::symmetric>`, `vector<double, dim<4>, structure::unit_norm>` (a quaternion), `vector<double, bounded<256>>` (with a count), `tensor<double, dim<3>, dim<32>, dim<32>>` (an image, of rank 3). A `record` groups fields. | `flow/domain.hpp` |
+| **`data<D>`** | The value of a domain, stored as its structure says: a symmetric matrix stores only its upper triangle, a unit-norm vector is stored as dense, with its norm 1, and a domain of rank 3 or more is dense, row-major. | `flow/data.hpp` |
 | **operator** | A C++ type that computes, such as `Fir<double, 63>`. Its **binding** declares a **signature** (its ports: `in`, `out`, `inout`; and its declared state domains) and its **handlers**, each one function the graph can fire. | `flow/signature.hpp`, `flow/builder.hpp` |
 | **handler** | One entry point of an operator: its in ports, its out ports, its **state role** (`none`, `read` or `update`), and whether it takes the firing's time. | `flow::handler<...>` |
 | **`registered<Name, T, B>`** | An operator registered under a name that carries its element type and shape, such as `Fft_c128_256`. That name is what the graph records. | `flow/builder.hpp` |
@@ -238,11 +238,10 @@ It has an index space `(i, j)` bound from the port `w`'s extents, a running sum 
 
 ## 8. The patterns still to come
 
-[ADR 0005](../adr/0005-application-tier.md) lists nine patterns. Five run today: the three above; PID control (`workbench_run pid`), which landed with the **carried edge**, a loop closed from one run of a region to the next; and the attitude filter (`workbench_run attitude`), which landed with the **unit-norm** structure, a quaternion whose norm is 1, stored as a dense vector. Each of the other four lands with the feature of the machinery it exercises:
+[ADR 0005](../adr/0005-application-tier.md) lists nine patterns. Six run today: the three above; PID control (`workbench_run pid`), which landed with the **carried edge**, a loop closed from one run of a region to the next; the attitude filter (`workbench_run attitude`), which landed with the **unit-norm** structure, a quaternion whose norm is 1, stored as a dense vector; and the convolution (`workbench_run conv`), which landed with **rank-3** domains and a **sliding-window** computational domain. Each of the other three lands with the feature of the machinery it exercises:
 
 | Pattern | Step | The feature it lands with |
 |---|---|---|
-| convolution | C6 | **rank-3** domains, and a sliding-window computational domain |
 | stencils | C7 | the **halo** of a divided computational domain |
 | SOR/SSOR | C8 | the **dependence depth**, which says what can run in parallel |
 | QR | C9 | a **triangular** computational domain, and an `inout` port |

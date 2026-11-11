@@ -422,31 +422,45 @@ evaluate(const cd::system& s, const cd::table& t, const inputs& in, std::uint64_
         }
         return x.def < y.def;
     };
+    // The ready definitions: a heap by `before` for the deterministic order,
+    // whose least is the one `before` puts first, since it orders every two
+    // definitions; a list to draw from for a random one.
+    const auto after = [&](std::uint32_t a, std::uint32_t b) { return before(b, a); };
     std::vector<std::uint32_t> ready;
     for (std::uint32_t k = 0; k < n; ++k) {
         if (indegree[k] == 0) {
             ready.push_back(k);
         }
     }
+    if (seed == 0) {
+        std::make_heap(ready.begin(), ready.end(), after);
+    }
     std::mt19937_64 rng(seed);
+
+    // The port or state each operand reads, found once.
+    std::vector<const tensor*> source_of(s.n_operands, nullptr);
+    for (std::uint16_t i = 0; i < s.n_operands; ++i) {
+        const cd::operand& o = s.operands[i];
+        if (o.kind == cd::okind::port || o.kind == cd::okind::state) {
+            source_of[i] = find_value(o.name, o.field);
+        }
+    }
 
     std::vector<value> result(n);
     std::vector<value> memo(cd::max_nodes);
     std::size_t done = 0;
     while (!ready.empty()) {
-        std::size_t pick = 0;
+        std::uint32_t id = 0;
         if (seed == 0) {
-            for (std::size_t k = 1; k < ready.size(); ++k) {
-                if (before(ready[k], ready[pick])) {
-                    pick = k;
-                }
-            }
+            std::pop_heap(ready.begin(), ready.end(), after);
+            id = ready.back();
+            ready.pop_back();
         } else {
-            pick = static_cast<std::size_t>(rng() % ready.size());
+            const auto pick = static_cast<std::size_t>(rng() % ready.size());
+            id = ready[pick];
+            ready[pick] = ready.back();
+            ready.pop_back();
         }
-        const std::uint32_t id = ready[pick];
-        ready[pick] = ready.back();
-        ready.pop_back();
         ++done;
 
         // Evaluate the definition at its point.
@@ -492,7 +506,7 @@ evaluate(const cd::system& s, const cd::table& t, const inputs& in, std::uint64_
                     }
                     v = it->second.v[static_cast<std::size_t>(e)];
                 } else {
-                    const tensor* src = find_value(o.name, o.field);
+                    const tensor* src = source_of[x.a];
                     if (src == nullptr) {
                         out.problems.push_back({"K4", path_of(o.name, o.field) + " isn't given"});
                         return out;
@@ -544,6 +558,9 @@ evaluate(const cd::system& s, const cd::table& t, const inputs& in, std::uint64_
         for (const std::uint32_t m : succ[id]) {
             if (--indegree[m] == 0) {
                 ready.push_back(m);
+                if (seed == 0) {
+                    std::push_heap(ready.begin(), ready.end(), after);
+                }
             }
         }
     }

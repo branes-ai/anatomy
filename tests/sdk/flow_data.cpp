@@ -1,7 +1,8 @@
 // Unit tests for flow::data<D> (branes/anatomy/flow/data.hpp) and complex
 // element types (docs/plan/workbench, B1, property W4): each structure's
 // storage size and index mapping, a symmetric domain's one element for (i, j)
-// and (j, i), a bounded extent's count, and data<D> run as messages through
+// and (j, i), a bounded extent's count, rank 3 and up stored row-major
+// (docs/plan/computational-domain, W17), and data<D> run as messages through
 // the CPU stack. Edges between data of different domains are the compile-fail
 // tests (tests/compile_fail/flow_w4_*).
 
@@ -241,6 +242,68 @@ TEST_CASE("data: a unit-norm vector stores what dense does, and starts as e0 (W1
     CHECK_FALSE(f.structure_holds());
 }
 
+TEST_CASE("data: a rank-3 or rank-4 domain is stored row-major, the last index fastest (W17)", "[flow][data]") {
+    using Cube = tensor<double, dim<2>, dim<3>, dim<4>>;
+    using Kernels = tensor<float, dim<2>, dim<3>, dim<2>, dim<2>>;
+    STATIC_REQUIRE(data<Cube>::rank == 3);
+    STATIC_REQUIRE(data<Cube>::stored == 24);
+    STATIC_REQUIRE(data<Cube>::row_size == 12);
+    STATIC_REQUIRE(data<Cube>::sizes == std::array<std::size_t, 3>{2, 3, 4});
+    STATIC_REQUIRE(sizeof(data<Cube>::elements) == 24 * sizeof(double));
+    STATIC_REQUIRE(data<Kernels>::stored == 24);
+    STATIC_REQUIRE(data<Kernels>::row_size == 12);
+    STATIC_REQUIRE(std::is_same_v<domain_of_t<data<Cube>>, Cube>);
+
+    // Row-major: (i, j, k) at (i·3 + j)·4 + k, a bijection onto the storage.
+    std::set<std::size_t> seen;
+    for (std::size_t i = 0; i < 2; ++i) {
+        for (std::size_t j = 0; j < 3; ++j) {
+            for (std::size_t k = 0; k < 4; ++k) {
+                const std::size_t e = data<Cube>::index(i, j, k);
+                CHECK(e == (i * 3 + j) * 4 + k);
+                seen.insert(e);
+            }
+        }
+    }
+    CHECK(seen.size() == 24);
+    CHECK(*seen.rbegin() == 23);
+    CHECK(data<Kernels>::index(1, 2, 1, 0) == ((1 * 3 + 2) * 2 + 1) * 2);
+
+    data<Cube> c;
+    CHECK(c.count() == 2);
+    c(1, 2, 3) = 5.0;
+    CHECK(c.elements[23] == 5.0);
+    CHECK(&c(0, 1, 2) == &c.elements[6]);
+    const data<Cube>& cc = c;
+    CHECK(cc(1, 2, 3) == 5.0);
+    CHECK_FALSE(c.resize(1));  // a static leading extent's count is its size
+
+    data<Kernels> w;
+    w(1, 2, 1, 0) = 2.5f;
+    CHECK(w.elements[22] == 2.5f);
+}
+
+TEST_CASE("data: a bounded leading extent of rank 3 counts rows of every trailing element (A1, A2, W17)",
+          "[flow][data]") {
+    using Frames = tensor<double, bounded<3>, dim<2>, dim<2>>;
+    STATIC_REQUIRE(data<Frames>::stored == 12);
+    STATIC_REQUIRE(data<Frames>::row_size == 4);
+    data<Frames> f;
+    CHECK(f.count() == 0);
+    REQUIRE(f.resize(3));
+    for (double& e : f.elements) {
+        e = 1.0;
+    }
+    // Shrinking to one row resets the last two, all four elements of each.
+    REQUIRE(f.resize(1));
+    for (std::size_t k = 0; k < 12; ++k) {
+        INFO("element " << k);
+        CHECK(f.elements[k] == (k < 4 ? 1.0 : 0.0));
+    }
+    CHECK_FALSE(f.resize(4));
+    CHECK(f.count() == 1);
+}
+
 // ── data<D> as messages through the CPU stack ───────────────────────
 
 namespace {
@@ -311,4 +374,57 @@ TEST_CASE("data: vectors and symmetric matrices run through the CPU stack", "[fl
     CHECK(s.output(q)(2, 0) == 12.0);
     CHECK(s.output(q)(1, 1) == 20.0);
     CHECK(s.output(q)(0, 1) == 0.0);
+}
+
+namespace {
+
+using Cube = data<tensor<double, dim<2>, dim<2>, dim<3>>>;
+
+/// y(i, j, k) = x(i, j, k) + i: a rank-3 message, through one handler.
+struct Lift {};
+
+struct LiftBinding {
+    using signature =
+        branes::anatomy::flow::signature<ports<port<"x", Cube, direction::in>, port<"y", Cube, direction::out>>>;
+    struct apply : handler<"apply", ins<"x">, outs<"y">> {
+        static Cube call(const Lift&, const Cube& x) {
+            Cube y;
+            for (std::size_t i = 0; i < 2; ++i) {
+                for (std::size_t j = 0; j < 2; ++j) {
+                    for (std::size_t k = 0; k < 3; ++k) {
+                        y(i, j, k) = x(i, j, k) + static_cast<double>(i);
+                    }
+                }
+            }
+            return y;
+        }
+    };
+    using handlers = branes::anatomy::flow::handlers<apply>;
+};
+
+using LiftOp = registered<"Lift", Lift, LiftBinding>;
+
+}  // namespace
+
+TEST_CASE("data: a rank-3 message runs through the CPU stack (W17)", "[flow][data]") {
+    Context ctx;
+    stack_builder<Context> g("cube", baseline_class::research, ctx);
+    const auto x = input<Cube>(g, "x");
+    const auto y = output<Cube>(g, "y", x);
+    const auto lift = instance<LiftOp>(g, "lift");
+    scope r = g.region(x);
+    auto [ys] = fire<"apply">(r, lift, x);
+    g.produce(y, ys);
+    auto built = std::move(g).build_stack();
+    REQUIRE(built);
+    stack s = std::move(built).value();
+
+    Cube in;
+    for (std::size_t e = 0; e < Cube::stored; ++e) {
+        in.elements[e] = static_cast<double>(e);
+    }
+    s.input(x, in);
+    CHECK(s.output(y)(0, 1, 2) == 5.0);
+    CHECK(s.output(y)(1, 0, 0) == 6.0 + 1.0);
+    CHECK(s.output(y)(1, 1, 2) == 11.0 + 1.0);
 }

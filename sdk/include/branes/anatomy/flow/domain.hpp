@@ -13,6 +13,9 @@
 ///   dim<N, Name>              : a static extent of size N, optionally named
 ///   bounded<Max, Name>        : an extent of at most Max, with a count in the data
 ///   domain<E, S, Extents...>  : element type E, structure S, the extents
+///   scalar, vector, matrix, tensor
+///                             : a domain of rank 0, 1 and 2, dense unless given a
+///                               structure, and a dense one of any rank
 ///   field<Name, D>            : a named domain or record
 ///   record<Fields...>         : the fields, in order
 ///   domain_of<M>              : the domain or record a message type M is
@@ -196,6 +199,10 @@ template <class E, class X, structure S = structure::dense>
 using vector = domain<E, S, X>;
 template <class E, class R, class C, structure S = structure::dense>
 using matrix = domain<E, S, R, C>;
+/// A dense domain of any rank, row-major in data<D>: rank 3 and up have no
+/// other structure (D2; docs/plan/computational-domain, C6).
+template <class E, class... Extents>
+using tensor = domain<E, structure::dense, Extents...>;
 
 template <class D>
 inline constexpr bool is_domain_v = std::is_base_of_v<detail::domain_tag, D>;
