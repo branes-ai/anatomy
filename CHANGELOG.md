@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.0](https://github.com/branes-ai/anatomy/compare/v0.12.0...v0.13.0) (2026-11-11)
+
+
+### Features
+
+* **flow:** add carried edges, and the pid control pattern (cd C4) ([#105](https://github.com/branes-ai/anatomy/issues/105)) ([e0ee85c](https://github.com/branes-ai/anatomy/commit/e0ee85c8f2fb494f55aa47f35d5cd24c11bc5dab))
+* **flow:** add the computational domain of a handler, and its checks (cd C1) ([92249fc](https://github.com/branes-ai/anatomy/commit/92249fc4a282b5b5adec4278246dae14309254e5))
+* **flow:** add the computational domain of a handler, and its checks (cd C1) ([#100](https://github.com/branes-ai/anatomy/issues/100)) ([92249fc](https://github.com/branes-ai/anatomy/commit/92249fc4a282b5b5adec4278246dae14309254e5))
+* **workbench:** add the unit-norm structure, and the attitude filter pattern (cd C5) ([#106](https://github.com/branes-ai/anatomy/issues/106)) ([cf468d6](https://github.com/branes-ai/anatomy/commit/cf468d64d8dc1ee1a25b989e07fa6eb80322bd73))
+* **workbench:** declare the dsp pipeline's computational domains (cd C3) ([#103](https://github.com/branes-ai/anatomy/issues/103)) ([d73537c](https://github.com/branes-ai/anatomy/commit/d73537cef51dd9251d617908e2d22f86833f0665))
+* **workbench:** declare the mlp's and the kalman filter's computational domains (cd C2) ([#102](https://github.com/branes-ai/anatomy/issues/102)) ([a777535](https://github.com/branes-ai/anatomy/commit/a777535e69243c82be1080268efed20db731b04c))
+
 ## [0.12.0](https://github.com/branes-ai/anatomy/compare/v0.11.5...v0.12.0) (2026-11-09)
 
 
