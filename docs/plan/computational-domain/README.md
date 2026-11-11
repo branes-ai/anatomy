@@ -102,7 +102,7 @@ This is the spelling C1 settled (`flow/compute.hpp`). What a `system` holds is f
   - **a record** is read and written by field path: `s.in("w", "items")(k)` and `s.in("w", "dropped")()` for the window `Framer` reads. A parameter binds an extent or a count of a field path in the same way, `s.count("w", "items")`. A field is a domain with faces of its own, so each check treats it as a port;
   - **an output face** is where a port or a state is written: `s.out("y")(i) = s.on(j == C − 1, …)` writes `y(i)` from the points of the face `j = C − 1`;
   - **an `inout` port or a state** has both. Its input faces read its value before the firing, and its output faces write its value after it. The two are kept apart: no write is seen by a read of the same firing. A lowering that updates the port or the state in place adds its own orderings: each write after every read of the old value it overwrites. It reads them from the description, which names every element each read and write touches.
-- **Operations:** `+`, `−`, `×` and `÷`; `sqrt`, `tanh`, `exp`, `abs`; a comparison and `select`; complex multiply, conjugate, real and imaginary parts and magnitude; and `cast` to an element type. Each operation is counted by kind for W13. A transcendental is one operation of its kind, not an expansion. An operation the description lacks is added with the first pattern that needs it.
+- **Operations:** `+`, `−`, `×` and `÷`; `sqrt`, `tanh`, `exp`, `abs`, and `sin` and `cos` (C5); a comparison and `select`; complex multiply, conjugate, real and imaginary parts and magnitude; and `cast` to an element type. Each operation is counted by kind for W13. A transcendental is one operation of its kind, not an expansion. An operation the description lacks is added with the first pattern that needs it.
 - **Operator parameters:** a scalar or a table that the operator holds from its context. Examples are the Kalman filter's `q` and `r`, and the FFT's twiddle factors. A declaration names it, `s.param("twiddle")(k)`, and the evaluator reads it from the operator through a hook the binding provides. Step 3 records the values in the document, as it records constants'.
 
 A handler whose work is a sequence of steps, such as the Kalman update in Joseph form (`S = H·P·Hᵀ + R`, then the gain, then `x` and `P`), declares a **program**: systems in order, joined by named intermediate domains. Each system's output faces write an intermediate that a later system's input faces read. The intermediates are internal to the handler. A lowering may fuse the systems or keep them apart (the model's section 5: a body of leaf operations inside one leaf).
@@ -187,10 +187,16 @@ Each pattern has a header in `workbench/patterns/`, the interface of `pattern.hp
 
 **The attitude filter (C5).**
 - A quaternion `q`, `data<vector<double, dim<4>, structure::unit_norm>>`, integrated from gyro samples at 400 Hz and corrected toward gravity from the accelerometer at 50 Hz. It is a complementary filter, with a gain from the configuration.
-- `structure::unit_norm` is new: a vector whose norm is 1, stored as dense, with the norm checked in debug builds against a tolerance the domain's element type sets. D2 admits it on rank 1.
+  - `propagate` turns `q` by the gyro's rate over one period exactly, `q ← q ⊗ exp(½·ω·h)`, which needs `sin` and `cos` in the declaration's operations, and normalizes it.
+  - `correct` turns `q` so that the up it predicts, `v`, moves to `u = (1 − g)·v + g·â`, with `r = (|u| + u·v, u × v)`, the rotation of `u` onto `v`, and normalizes it. So the tilt after a correction is `tan φ' = (1 − g)·sin φ / ((1 − g)·cos φ + g)`, which is `(1 − g)·φ` for a small one.
+  - Two filters run on their own inputs, four regions in all: one on a body spinning at a constant rate, from level, and one from a tilt on a body at rest.
+- `structure::unit_norm` is new: a vector whose norm is 1, stored as dense (`data<D>`'s A4).
+  - D2 admits it on rank 1, of a static extent and a floating-point element type.
+  - Its tolerance is the element type's, `unit_norm_tolerance<E>`, 256 ulps of 1.
+  - A value starts as the first basis vector, so every value holds A4 until its writer breaks it. In a debug build, the CPU stack asserts it of every message a firing writes and every input it is handed.
 - **Oracle:**
   - a constant rate integrates to the known rotation `exp(½·ω·t)`, to 1e-9 after 1 s;
-  - from a tilted start, a static attitude converges to gravity at the rate the gain predicts;
+  - from a tilted start, a static attitude converges to gravity at the rate the gain predicts: its tilt after each correction is the recurrence above, to 1e-12, and its last correction removes the fraction `g` of it, to a relative 1e-6;
   - the norm stays 1 to 1e-12 after every firing.
 
 **Convolution (C6).**
@@ -320,8 +326,8 @@ To be confirmed in this plan's PR.
 | C1: the computational domain and its checks | [#100](https://github.com/branes-ai/anatomy/pull/100) | merged |
 | C2: the MLP's and the Kalman filter's declarations | [#102](https://github.com/branes-ai/anatomy/pull/102) | merged |
 | C3: the DSP pipeline's declarations | [#103](https://github.com/branes-ai/anatomy/pull/103) | merged |
-| C4: carried edges and PID | [#105](https://github.com/branes-ai/anatomy/pull/105) | open |
-| C5: the attitude filter | | |
+| C4: carried edges and PID | [#105](https://github.com/branes-ai/anatomy/pull/105) | merged |
+| C5: the attitude filter | [#106](https://github.com/branes-ai/anatomy/pull/106) | open |
 | C6: convolution | | |
 | C7: stencils | | |
 | C8: SOR/SSOR | | |

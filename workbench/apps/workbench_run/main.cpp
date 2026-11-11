@@ -1,7 +1,7 @@
 // workbench_run: a pattern of the workbench, run with its default
 // configuration, and its oracle's report (docs/plan/workbench).
 //
-//   workbench_run <mlp|kalman|dsp|pid> [--inputs N] [--seed S] [--trace run.brtrace]
+//   workbench_run <mlp|kalman|dsp|pid|attitude> [--inputs N] [--seed S] [--trace run.brtrace]
 //                 [--mermaid g.mmd] [--canonical g.txt] [--tolerance-scale K]
 //                 [--check] [--compute cd.txt]
 //
@@ -14,16 +14,17 @@
 // file it can't write, as trace_compare does. --tolerance-scale multiplies
 // every upper bound by K, to show how much margin the pattern has.
 // This tool runs only the patterns compiled into it: the MLP, the Kalman
-// filter, the DSP pipeline and PID control. --inputs defaults to the
-// pattern's own number: the Kalman filter's oracle needs 2000 updates, the
-// DSP pipeline's 32 frames are 8224 inputs, and PID control's 15 s are 1500
-// ticks.
+// filter, the DSP pipeline, PID control and the attitude filter. --inputs
+// defaults to the pattern's own number: the Kalman filter's oracle needs 2000
+// updates, the DSP pipeline's 32 frames are 8224 inputs, PID control's 15 s
+// are 1500 ticks, and the attitude filter's 4 s are 3600 samples.
 
 #include <branes/anatomy/flow/builder.hpp>
 #include <branes/anatomy/flow/compute.hpp>
 #include <branes/anatomy/flow/graph.hpp>
 #include <branes/anatomy/harness/args.hpp>
 #include <branes/anatomy/workbench/pattern.hpp>
+#include <branes/anatomy/workbench/patterns/attitude.hpp>
 #include <branes/anatomy/workbench/patterns/dsp.hpp>
 #include <branes/anatomy/workbench/patterns/kalman.hpp>
 #include <branes/anatomy/workbench/patterns/mlp.hpp>
@@ -49,9 +50,9 @@ int usage(const std::string& message) {
     return 2;
 }
 
-constexpr const char* kUsage =
-    "usage: workbench_run <mlp|kalman|dsp|pid> [--inputs N] [--seed S] [--trace run.brtrace] [--mermaid g.mmd] "
-    "[--canonical g.txt] [--tolerance-scale K] [--check] [--compute cd.txt]";
+constexpr const char* kUsage = "usage: workbench_run <mlp|kalman|dsp|pid|attitude> [--inputs N] [--seed S] [--trace "
+                               "run.brtrace] [--mermaid g.mmd] "
+                               "[--canonical g.txt] [--tolerance-scale K] [--check] [--compute cd.txt]";
 
 template <class T>
 std::optional<T> number(const std::string& s) {
@@ -238,5 +239,12 @@ int main(int argc, char** argv) {
         }
         return run<wb::pid::pattern>(cfg, *args, inputs, scale);
     }
-    return usage("no pattern '" + pattern + "': this build runs mlp, kalman, dsp and pid\n" + kUsage);
+    if (pattern == "attitude") {
+        wb::attitude::config cfg;
+        if (seed) {
+            cfg.seed = *seed;
+        }
+        return run<wb::attitude::pattern>(cfg, *args, inputs, scale);
+    }
+    return usage("no pattern '" + pattern + "': this build runs mlp, kalman, dsp, pid and attitude\n" + kUsage);
 }

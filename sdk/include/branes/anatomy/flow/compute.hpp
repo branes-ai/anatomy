@@ -233,6 +233,8 @@ enum class op : std::uint8_t {
     cabs,    ///< the magnitude of a complex
     sel_lt,  ///< a < b ? c : d
     sel_le,  ///< a <= b ? c : d
+    sin,     ///< of a real, in radians (C5: the attitude filter's rotations)
+    cos,
 };
 
 [[nodiscard]] constexpr bool is_index_op(op o) noexcept {
@@ -910,6 +912,12 @@ constexpr val tanh(val a) noexcept {
 constexpr val exp(val a) noexcept {
     return detail::vun(op::exp, a);
 }
+constexpr val sin(val a) noexcept {
+    return detail::vun(op::sin, a);
+}
+constexpr val cos(val a) noexcept {
+    return detail::vun(op::cos, a);
+}
 constexpr val abs(val a) noexcept {
     return detail::vun(op::abs, a);
 }
@@ -1264,6 +1272,8 @@ constexpr std::uint16_t type_nodes(const system& s, const table& t, std::array<e
         case op::sqrt:
         case op::tanh:
         case op::exp:
+        case op::sin:
+        case op::cos:
         case op::abs:
             if (!is_real(ty[x.a])) {
                 return i;
@@ -1345,6 +1355,8 @@ constexpr std::uint16_t check_stage(const system& s, std::uint16_t n, int stage)
     case op::sqrt:
     case op::tanh:
     case op::exp:
+    case op::sin:
+    case op::cos:
     case op::abs:
     case op::conj:
     case op::real:
@@ -1418,6 +1430,8 @@ constexpr std::uint16_t check_reads(const system& s, const table& t, std::uint16
     case op::sqrt:
     case op::tanh:
     case op::exp:
+    case op::sin:
+    case op::cos:
     case op::abs:
     case op::conj:
     case op::real:

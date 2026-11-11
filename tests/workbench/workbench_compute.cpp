@@ -1,6 +1,6 @@
 // The computational domains of the MLP's, the Kalman filter's, the DSP
-// pipeline's and PID control's handlers (docs/plan/computational-domain, C2,
-// C3 and C4):
+// pipeline's, PID control's and the attitude filter's handlers
+// (docs/plan/computational-domain, C2 to C5):
 //   W10 every declared handler passes K1–K7, and K8 classifies it as stated;
 //   W11 each declaration, evaluated on the values of each of its firings in
 //       the run by hand, gives what its handler gives;
@@ -11,6 +11,7 @@
 #include <branes/anatomy/flow/compute.hpp>
 #include <branes/anatomy/workbench/evaluate.hpp>
 #include <branes/anatomy/workbench/pattern.hpp>
+#include <branes/anatomy/workbench/patterns/attitude.hpp>
 #include <branes/anatomy/workbench/patterns/dsp.hpp>
 #include <branes/anatomy/workbench/patterns/kalman.hpp>
 #include <branes/anatomy/workbench/patterns/mlp.hpp>
@@ -399,4 +400,74 @@ TEST_CASE("compute: PID control's declarations give what its handlers give, exac
     }
     CHECK(rec.firings.at("PidPID_f64.step") == 300);
     CHECK(rec.firings.at("Plant_f64.step") == 3 * 300);
+}
+
+// ── The attitude filter ─────────────────────────────────────────────
+
+TEST_CASE("compute: the attitude filter's handlers pass the checks, at one point each",
+          "[workbench][compute][attitude][W10]") {
+    const auto r = check_all<wb::attitude::pattern>();
+    REQUIRE(r.size() == 4);
+    for (const auto& [who, rep] : r) {
+        INFO(who);
+        REQUIRE(rep.stages.size() == 1);
+        CHECK(rep.stages[0] == cd::shape::uniform);
+    }
+    // |w|, the half angle, its sine, k, k*w, the product, its norm, the quotients, the writes.
+    CHECK(r.at("Attitude_f64.propagate").depth == 8);
+    // v, u, |u|, r, the product, its norm, the quotients, the writes; and k before u.
+    CHECK(r.at("Attitude_f64.correct").depth == 9);
+}
+
+TEST_CASE("compute: the attitude filter's counts are its handlers' operations", "[workbench][compute][attitude][W13]") {
+    using cd::etype;
+    using cd::op;
+    const auto r = check_all<wb::attitude::pattern>();
+    // The product of two quaternions is 16 multiplies and 12 adds or
+    // subtracts, and normalizing one is 4 multiplies, 3 adds, a square root
+    // and 4 divides.
+    for (const char* who : {"Attitude_f64.propagate", "AttitudeTilted_f64.propagate"}) {
+        INFO(who);
+        const cd::report& c = r.at(who);
+        // |w|: 3 mul, 2 add, a sqrt; the half angle: 1 mul; k: a sin, a div,
+        // a select; k*w: 3 mul; the cosine.
+        CHECK(c.count(op::mul, etype::f64) == 3 + 1 + 3 + 16 + 4);
+        CHECK(c.count(op::add, etype::f64) == 2 + 6 + 3);
+        CHECK(c.count(op::sub, etype::f64) == 6);
+        CHECK(c.count(op::div, etype::f64) == 1 + 4);
+        CHECK(c.count(op::sqrt, etype::f64) == 2);
+        CHECK(c.count(op::sin, etype::f64) == 1);
+        CHECK(c.count(op::cos, etype::f64) == 1);
+        CHECK(c.count(op::sel_le, etype::f64) == 1);
+    }
+    for (const char* who : {"Attitude_f64.correct", "AttitudeTilted_f64.correct"}) {
+        INFO(who);
+        const cd::report& c = r.at(who);
+        // v: 10 mul, 2 add, 3 sub; |a|: 3 mul, 2 add, a sqrt; k: a div, a
+        // select; u: 6 mul, 3 add; |u|: 3 mul, 2 add, a sqrt; r: 9 mul, 3 add,
+        // 3 sub; and the product and its normalization.
+        CHECK(c.count(op::mul, etype::f64) == 10 + 3 + 6 + 3 + 9 + 16 + 4);
+        CHECK(c.count(op::add, etype::f64) == 2 + 2 + 3 + 2 + 3 + 6 + 3);
+        CHECK(c.count(op::sub, etype::f64) == 3 + 3 + 6);
+        CHECK(c.count(op::div, etype::f64) == 1 + 4);
+        CHECK(c.count(op::sqrt, etype::f64) == 3);
+        CHECK(c.count(op::sel_le, etype::f64) == 1);
+        CHECK(c.count(op::sin, etype::f64) == 0);
+    }
+}
+
+TEST_CASE("compute: the attitude filter's declarations give what its handlers give, exactly",
+          "[workbench][compute][attitude][W11][W12]") {
+    const wb::attitude::config c;
+    recorder rec;
+    (void)wb::attitude::hand_run(c, 900, rec);
+    require_clean(rec);
+    REQUIRE(rec.worst.size() == 4);
+    for (const auto& [who, d] : rec.worst) {
+        INFO(who << ": " << static_cast<double>(d));
+        CHECK(d == 0);
+    }
+    // 1 s: 400 samples of each gyro and 50 of each accelerometer.
+    CHECK(rec.firings.at("Attitude_f64.propagate") == 400);
+    CHECK(rec.firings.at("AttitudeTilted_f64.correct") == 50);
 }

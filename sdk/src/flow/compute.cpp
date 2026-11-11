@@ -67,6 +67,10 @@ std::string_view to_string(op o) noexcept {
         return "tanh";
     case op::exp:
         return "exp";
+    case op::sin:
+        return "sin";
+    case op::cos:
+        return "cos";
     case op::abs:
         return "abs";
     case op::conj:
@@ -555,6 +559,8 @@ std::vector<std::uint16_t> postorder(const system& s, std::uint16_t root) {
         case op::sqrt:
         case op::tanh:
         case op::exp:
+        case op::sin:
+        case op::cos:
         case op::abs:
         case op::conj:
         case op::real:

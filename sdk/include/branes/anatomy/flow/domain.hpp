@@ -21,7 +21,9 @@
 /// query, or by a record, port or signature that holds it, which instantiates
 /// what it holds):
 ///   D1: every extent has a size or a bound of at least 1
-///   D2: a structure other than dense needs rank 2 and the same extent twice
+///   D2: a symmetric, triangular or diagonal structure needs rank 2 and the
+///       same extent twice; a unit-norm one needs rank 1, a static extent, and
+///       a floating-point element type
 ///   D3: the element type is an element type (is_element_v): arithmetic, an
 ///       enumeration, Timestamp, std::complex of a floating-point type, or a record
 ///   R1: a record has at least one field, its field names are non-empty and
@@ -146,7 +148,9 @@ inline constexpr bool is_element_v =
 
 // ── Domains ─────────────────────────────────────────────────────────
 
-enum class structure : std::uint8_t { dense, symmetric, lower_triangular, upper_triangular, diagonal };
+/// How a domain's elements are constrained, and so stored (flow/data.hpp). A
+/// unit-norm vector is stored as dense is; its norm is 1 (docs/plan/computational-domain, C5).
+enum class structure : std::uint8_t { dense, symmetric, lower_triangular, upper_triangular, diagonal, unit_norm };
 
 namespace detail {
 template <class... Extents>
@@ -158,14 +162,26 @@ template <class... Extents>
         return false;
     }
 }
+
+/// A unit-norm domain's shape: one static extent, and a floating-point element.
+template <class E, class... Extents>
+[[nodiscard]] constexpr bool unit_norm_shape() noexcept {
+    if constexpr (sizeof...(Extents) == 1) {
+        return std::is_floating_point_v<E> && !(Extents::is_bounded || ...);
+    } else {
+        return false;
+    }
+}
 }  // namespace detail
 
 /// Element type E, structure S, and the extents (rank = their number).
 template <class E, structure S, class... Extents>
 struct domain : detail::domain_tag {
     static_assert((is_extent_v<Extents> && ...), "D1: a domain's extents are dim or bounded");
-    static_assert(S == structure::dense || detail::square<Extents...>(),
-                  "D2: a structure other than dense needs a square domain of rank 2");
+    static_assert(S == structure::dense || S == structure::unit_norm || detail::square<Extents...>(),
+                  "D2: a symmetric, triangular or diagonal structure needs a square domain of rank 2");
+    static_assert(S != structure::unit_norm || detail::unit_norm_shape<E, Extents...>(),
+                  "D2: a unit-norm structure needs a vector of static extent with a floating-point element type");
     static_assert(is_element_v<E>, "D3: the element type is an element type");
 
     using element_type = E;
@@ -176,8 +192,8 @@ struct domain : detail::domain_tag {
 
 template <class E>
 using scalar = domain<E, structure::dense>;
-template <class E, class X>
-using vector = domain<E, structure::dense, X>;
+template <class E, class X, structure S = structure::dense>
+using vector = domain<E, S, X>;
 template <class E, class R, class C, structure S = structure::dense>
 using matrix = domain<E, S, R, C>;
 
@@ -269,11 +285,12 @@ template <class D>
 inline constexpr std::size_t max_elements_v =
     detail::extent_product<typename detail::require_domain<D>::type::extents>::value;
 
-/// The elements the structure needs: n(n+1)/2 for symmetric and triangular, n for diagonal.
+/// The elements the structure needs: n(n+1)/2 for symmetric and triangular, n
+/// for diagonal, and every element for dense and unit-norm.
 template <class D>
 inline constexpr std::size_t stored_elements_v = [] {
     using Dom = typename detail::require_domain<D>::type;
-    if constexpr (Dom::kind == structure::dense) {
+    if constexpr (Dom::kind == structure::dense || Dom::kind == structure::unit_norm) {
         return max_elements_v<Dom>;
     } else {
         constexpr std::size_t n = std::tuple_element_t<0, typename Dom::extents>::size;
