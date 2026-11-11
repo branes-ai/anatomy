@@ -12,9 +12,11 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
 #include <complex>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <set>
 #include <type_traits>
 
@@ -197,6 +199,46 @@ TEST_CASE("data: complex elements", "[flow][data]") {
     x(1) = {1.0, -2.0};
     CHECK(x(1).imag() == -2.0);
     CHECK(x(0) == std::complex<double>{});
+}
+
+TEST_CASE("data: a unit-norm vector stores what dense does, and starts as e0 (W17, A4)", "[flow][data]") {
+    using Quat = vector<double, dim<4>, structure::unit_norm>;
+    using Dense4 = vector<double, dim<4>>;
+    STATIC_REQUIRE(stored_elements_v<Quat> == 4);
+    STATIC_REQUIRE(data<Quat>::stored == data<Dense4>::stored);
+    STATIC_REQUIRE(sizeof(data<Quat>) == sizeof(data<Dense4>));
+    STATIC_REQUIRE(data<Quat>{}.structure_holds());
+    STATIC_REQUIRE(data<Dense4>{}.structure_holds());  // dense has no norm to hold
+
+    data<Quat> q;
+    CHECK(q.count() == 4);
+    CHECK(q.elements == std::array<double, 4>{1.0, 0.0, 0.0, 0.0});
+    // Stored in order, as a dense vector is.
+    q(0) = 0.5;
+    q(1) = -0.5;
+    q(2) = 0.5;
+    q(3) = 0.5;
+    CHECK(&q(2) == &q.elements[2]);
+    CHECK(q.structure_holds());
+
+    // A4's tolerance is 256 ulps of 1: a normalized vector holds it, and a
+    // norm off by more does not.
+    STATIC_REQUIRE(unit_norm_tolerance<double> == 256 * std::numeric_limits<double>::epsilon());
+    q(3) = 0.5 + 1e-12;
+    CHECK_FALSE(q.structure_holds());
+    q(3) = 0.5 + 1e-15;
+    CHECK(q.structure_holds());
+    q.elements = {0.0, 0.0, 0.0, 0.0};
+    CHECK_FALSE(q.structure_holds());
+    q(3) = std::numeric_limits<double>::quiet_NaN();
+    CHECK_FALSE(q.structure_holds());
+
+    data<vector<float, dim<3>, structure::unit_norm>> f;
+    f(0) = 0.6f;
+    f(1) = 0.8f;
+    CHECK(f.structure_holds());
+    f(1) = 0.8001f;
+    CHECK_FALSE(f.structure_holds());
 }
 
 // ── data<D> as messages through the CPU stack ───────────────────────

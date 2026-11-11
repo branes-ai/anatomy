@@ -12,6 +12,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <cstdint>
 #include <string>
 
 namespace fl = branes::anatomy::flow;
@@ -287,4 +288,29 @@ TEST_CASE("compute: K1 and K2 are reported at run time too", "[flow][compute][W1
     }();
     CHECK(cd::k1(no_dim, table_for<LB, "apply">()).k == 0);
     CHECK(cd::k2(no_dim, table_for<LB, "apply">()).k == 2);
+}
+
+TEST_CASE("compute: sin and cos take a real, and are counted by kind", "[flow][compute][W10][W13]") {
+    // y(i) = sin(x(i)) * cos(x(i)), over x's 4 elements: K1 types it.
+    static constexpr cd::system trig = [] {
+        cd::system s;
+        const auto i = s.index("i", 0, s.extent("x", 0));
+        s.write(s.out("y").at(i), sin(s.in("x")(i)) * cos(s.in("x")(i)));
+        return s;
+    }();
+    CHECK(cd::k1(trig, table_for<LB, "apply">()).k == 0);
+    CHECK(cd::to_string(cd::op::sin) == "sin");
+    CHECK(cd::to_string(cd::op::cos) == "cos");
+    CHECK(cd::is_counted(cd::op::sin));
+    CHECK(cd::is_counted(cd::op::cos));
+    // Of a complex: refused by K1, as a mismatched type.
+    static constexpr cd::system of_complex = [] {
+        cd::system s;
+        const auto i = s.index("i", 0, s.extent("x", 0));
+        s.write(s.out("y").at(i), s.cast(cos(s.literal(1, cd::etype::c128)), cd::etype::f64));
+        return s;
+    }();
+    const cd::finding f = cd::k1(of_complex, table_for<LB, "apply">());
+    CHECK(f.k == 1);
+    CHECK(f.what == static_cast<std::uint8_t>(cd::reason::type));
 }

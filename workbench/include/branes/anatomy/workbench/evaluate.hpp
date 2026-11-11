@@ -252,6 +252,10 @@ template <class T>
                 return make(a.t, std::tanh(x));
             case cd::op::exp:
                 return make(a.t, std::exp(x));
+            case cd::op::sin:
+                return make(a.t, std::sin(x));
+            case cd::op::cos:
+                return make(a.t, std::cos(x));
             case cd::op::abs:
                 return make(a.t, std::abs(x));
             default:

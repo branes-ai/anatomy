@@ -85,6 +85,19 @@ TEST_CASE("mtl5: a view reads and writes the elements in place", "[workbench][mt
     STATIC_REQUIRE_FALSE(std::is_move_constructible_v<decltype(v)>);
 }
 
+TEST_CASE("mtl5: a unit-norm vector is viewed as the dense one it is stored as", "[workbench][mtl5]") {
+    using Q = fl::data<fl::vector<double, fl::dim<4>, fl::structure::unit_norm>>;
+    Q q;
+    auto v = m5::view(q);
+    CHECK(v.rows() == 4);
+    CHECK(&v.get()(3) == &q.elements[3]);
+    CHECK(v(0) == 1.0);
+    v(0) = 0.0;
+    v(2) = 1.0;
+    CHECK(q(2) == 1.0);
+    CHECK(q.structure_holds());
+}
+
 TEST_CASE("mtl5: assign and add write the data behind a view", "[workbench][mtl5]") {
     M3 a;
     M3 b;

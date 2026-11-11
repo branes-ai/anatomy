@@ -8,7 +8,7 @@
 /// MTL5: the workbench does, at reflex's pin.
 ///
 /// Model:
-///   view(d)        : a ref over a dense data<D> of rank 1 or 2: an MTL5
+///   view(d)        : a ref over a dense or unit-norm data<D> of rank 1 or 2: an MTL5
 ///                    dense_vector, or a row-major dense2D, built with MTL5's
 ///                    external-pointer constructors, of d.count() rows. It
 ///                    neither copies nor allocates.
@@ -152,7 +152,8 @@ struct access {
 namespace detail {
 template <class D>
 inline constexpr bool dense_view_v =
-    fl::is_domain_v<D> && D::kind == fl::structure::dense && (D::rank == 1 || D::rank == 2);
+    fl::is_domain_v<D> && (D::kind == fl::structure::dense || D::kind == fl::structure::unit_norm) &&
+    (D::rank == 1 || D::rank == 2);
 
 template <class X>
 struct is_ref : std::false_type {};

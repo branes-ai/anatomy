@@ -53,6 +53,7 @@
 #include <branes/anatomy/slots/slot_context.hpp>
 
 #include <array>
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -634,7 +635,22 @@ struct callable<Op, H, std::tuple<In...>> {
                                            : requires(Op& o, const In&... in) { H::call(o, in...); };
 };
 
-/// The thunk that fires handler H of an operator of type Op.
+/// Whether message m keeps its structure's invariant: a data<D>'s
+/// structure_holds() (flow/data.hpp, A4), and true for any other message.
+template <class M>
+[[nodiscard]] constexpr bool structure_holds(const M& m) noexcept {
+    if constexpr (requires {
+                      { m.structure_holds() } -> std::same_as<bool>;
+                  }) {
+        return m.structure_holds();
+    } else {
+        return true;
+    }
+}
+
+/// The thunk that fires handler H of an operator of type Op. In a debug
+/// build, it asserts that each message it writes keeps its structure's
+/// invariant (structure_holds).
 template <class Op, class Sig, class H>
 [[nodiscard]] thunk_fn thunk_of() {
     using in_types = typename port_values<Sig, typename H::in>::type;
@@ -674,6 +690,14 @@ template <class Op, class Sig, class H>
                         ((*static_cast<std::tuple_element_t<J, out_types>*>(out[J]) = std::get<J>(std::move(r))), ...);
                     }(std::make_index_sequence<n>{});
                 }
+#ifndef NDEBUG
+                [&]<std::size_t... J>(std::index_sequence<J...>) {
+                    const bool held =
+                        (structure_holds(*static_cast<const std::tuple_element_t<J, out_types>*>(out[J])) && ...);
+                    assert(held && "A4: a unit-norm value a firing writes has norm 1");
+                    (void)held;
+                }(std::make_index_sequence<n>{});
+#endif
             }(std::make_index_sequence<std::tuple_size_v<in_types>>{});
         };
     } else {
@@ -1001,6 +1025,7 @@ public:
     /// Hand the stack input `in`'s message, and run its trigger's region, if it has one.
     template <class M>
     void input(const input_port<M>& in, const M& m) {
+        assert(detail::structure_holds(m) && "A4: a unit-norm value an input hands the stack has norm 1");
         const input_rec& r = inputs_[in.index];
         *static_cast<M*>(r.slot) = m;
         for (const push& p : r.pushes) {

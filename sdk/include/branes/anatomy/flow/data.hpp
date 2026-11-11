@@ -18,6 +18,7 @@
 ///                         upper_triangular the upper triangle, row by row
 ///                         lower_triangular the lower triangle, row by row
 ///                         diagonal         the diagonal
+///                         unit_norm        as dense: a vector, in order
 ///   count()           : the rows in use. A bounded leading extent's count, in
 ///                       [0, its bound]; a static leading extent's size; 1 for a scalar
 ///
@@ -27,21 +28,28 @@
 ///   A2: every element of a row at or beyond count() is value-initialized, so
 ///       two values with the same rows in use compare equal and encode alike
 ///   A3: a symmetric domain's (i, j) and (j, i) are one stored element
+///   A4: a unit-norm vector's norm is 1, to within unit_norm_tolerance<E>. Its
+///       writer keeps it so: a value starts as the first basis vector, and the
+///       CPU stack asserts it of each one a firing writes, in a debug build
+///       (structure_holds; docs/plan/computational-domain, C5)
 ///
 /// Contracts (preconditions are checked by assert in debug builds):
-///   data()                — Post: a bounded leading extent's count is 0; every element is E{}.
+///   data()                — Post: a bounded leading extent's count is 0; every element is E{},
+///                           but a unit-norm vector's first, which is 1 (A4).
 ///   resize(n)             — Post: true and count() == n if n is a count A1 allows; else
 ///                           false and nothing changes. Rows beyond n are reset to E{} (A2).
 ///   operator()(i[, j])    — Pre: i < count(), j < the column extent; for a triangular or
 ///                           diagonal domain, (i, j) is inside its structure. Post: the element.
 ///   at(i[, j]) const      — Pre: i < count(), j < the column extent. Post: the element, or
 ///                           E{} outside a triangle or a diagonal.
+///   structure_holds()     — Post: for a unit-norm vector, whether A4 holds; else true.
 
 #include <branes/anatomy/flow/domain.hpp>
 
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <limits>
 #include <tuple>
 #include <type_traits>
 
@@ -77,6 +85,12 @@ inline constexpr bool extent_is_bounded = [] {
 }();
 }  // namespace detail
 
+/// How far a unit-norm vector of element type E may be from norm 1 (A4): 256
+/// ulps of 1, room for the rounding of a normalization and of the arithmetic
+/// that follows it, and far below any error that isn't rounding.
+template <class E>
+inline constexpr E unit_norm_tolerance = E{256} * std::numeric_limits<E>::epsilon();
+
 /// The value of domain D (rank 0, 1 or 2).
 template <class D>
 class data {
@@ -103,7 +117,7 @@ public:
     static constexpr bool bounded = detail::extent_is_bounded<row_extent>;
     static constexpr std::size_t stored = stored_elements_v<D>;
 
-    std::array<element_type, stored> elements{};
+    std::array<element_type, stored> elements = initial();
 
     /// The rows in use (A1).
     [[nodiscard]] constexpr std::size_t count() const noexcept {
@@ -217,9 +231,34 @@ public:
         }
     }
 
+    /// A4: a unit-norm vector's squared norm is within twice the tolerance of
+    /// 1, which is its norm's within the tolerance to first order. True for
+    /// any other structure.
+    [[nodiscard]] constexpr bool structure_holds() const noexcept {
+        if constexpr (D::kind == structure::unit_norm) {
+            element_type sq{};
+            for (const element_type& e : elements) {
+                sq += e * e;
+            }
+            const element_type off = sq - element_type{1};
+            return (off < element_type{0} ? -off : off) <= element_type{2} * unit_norm_tolerance<element_type>;
+        } else {
+            return true;
+        }
+    }
+
     friend constexpr bool operator==(const data&, const data&) = default;
 
 private:
+    /// Every element value-initialized, but a unit-norm vector's first (A4).
+    [[nodiscard]] static constexpr std::array<element_type, stored> initial() noexcept {
+        std::array<element_type, stored> e{};
+        if constexpr (D::kind == structure::unit_norm) {
+            e[0] = element_type{1};
+        }
+        return e;
+    }
+
     std::size_t count_ = bounded ? 0 : max_rows;
 };
 
